@@ -6,7 +6,7 @@ Main entry point of the VG assignment program.
 import argparse
 import sys
 
-from gamespeare.game import TextAdventureGame, GameFileError
+from gamespeare.game import TextAdventureGame, GameDataError
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -18,7 +18,7 @@ if __name__ == "__main__":
     game_file = args.filename
     try:
         game = TextAdventureGame(game_file)
-    except GameFileError as e:
+    except GameDataError as e:
         print(f"Unable to load {game_file}: {e}", file=sys.stderr)
     else:
         game.play()
