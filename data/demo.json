@@ -1,1 +1,117 @@
-{}
+{
+  "world": {
+    "items": [
+      {
+        "class": "ITEM",
+        "name": "SKULL",
+        "description": "Yorick's skull"
+      },
+      {
+        "class": "ITEM",
+        "name": "KEY",
+        "description": "A small key"
+      },
+      {
+        "class": "CONTAINER",
+        "name": "CHEST",
+        "description": "A sturdy chest",
+        "key": "KEY",
+        "contents": [
+          "GIFT"
+        ]
+      },
+      {
+        "class": "ITEM",
+        "name": "GIFT",
+        "description": "A beautiful kamel\u00e5s\u00e5"
+      },
+      {
+        "class": "ITEM",
+        "name": "SWORD",
+        "description": "A sharp sword"
+      },
+      {
+        "class": "ITEM",
+        "name": "STATUE",
+        "description": "A huge statue",
+        "takeable": false
+      }
+    ],
+    "locations": [
+      {
+        "class": "LOCATION",
+        "name": "ROOM",
+        "description": "A room in the castle. Pretty cozy.",
+        "items": [
+          "CHEST"
+        ],
+        "destinations": {
+          "NORTH": "HALL"
+        }
+      },
+      {
+        "class": "LOCATION",
+        "name": "HALL",
+        "description": "A hallway in the castle. Very spartan.",
+        "destinations": {
+          "SOUTH": "ROOM",
+          "OUTSIDE": "COURTYARD"
+        }
+      },
+      {
+        "class": "LOCATION",
+        "name": "COURTYARD",
+        "description": "The courtyard. Scary. There is a big hole in the ground.",
+        "items": [
+          "KEY",
+          "SKULL",
+          "STATUE"
+        ],
+        "destinations": {
+          "INSIDE": "HALL",
+          "DOWN": "HOLE"
+        }
+      },
+      {
+        "class": "LOCATION",
+        "name": "HOLE",
+        "description": "A very deep hole"
+      }
+    ]
+  },
+  "story": {
+    "prologue": "You are Hamlet, prince of Denmark.\n\nGertrude's birthday is coming up, but you can not find the beautiful kamel\u00e5s\u00e5\nyou had the finest smiths in all of Denmark make for her.\n\nWhere can it be?",
+    "epilogue": "Game Over! Thanks for playing!",
+    "endings": [
+      {
+        "class": "RANDOM",
+        "reason": "Oh no! Hamlet was too stressed and suffered a stroke!",
+        "probability": 0.01
+      },
+      {
+        "class": "TURNS",
+        "reason": "Oh no! It is already Gertrude's birthday!",
+        "turn_limit": 20
+      },
+      {
+        "class": "GOAL",
+        "reason": "Great job! You completed the mission! Gertrude will be so happy!",
+        "items": [
+          "GIFT"
+        ]
+      },
+      {
+        "class": "GOAL",
+        "reason": "You fool! You are stuck!",
+        "location": "HOLE"
+      }
+    ]
+  },
+  "state": {
+    "turn_no": 1,
+    "location": "ROOM",
+    "inventory": [
+      "SWORD"
+    ]
+  }
+}

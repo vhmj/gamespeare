@@ -1,166 +1,341 @@
 """Module with the classes for representing an adventure game."""
 
-import json
-from abc import ABC
-from json import JSONDecodeError
-from typing import Any
+from abc import ABC, abstractmethod
+from collections.abc import Sequence
 
-
-class GameDataError(Exception):
-    """Exception raised when game data is invalid.
-
-    Attributes
-    ----------
-        message: str
-            Explanation of the error.
-    """
-
-    def __init__(self, message: str) -> None:
-        self.message = message
-        super().__init__(self.message)
+from gamespeare.action import (
+    Action,
+    ActionError,
+    MoveAction,
+    NoAction,
+    QuitAction,
+    TakeAction,
+    UseAction,
+)
+from gamespeare.item import LockableContainerItem
+from gamespeare.playbook import Playbook
 
 
 class AdventureGame(ABC):
     """Class for representing an adventure game.
 
+    Attributes
+    ----------
+    playbook : Playbook
+        Game data.
+    ending: str
+        The reason the game ended, or empty if the game has not ended.
+
     Parameters
     ----------
-    game_file : str
-        Path to the game file to use.
-
-    Raises
-    --------
-    GameDataError
-        If the game file cannot be properly loaded.
+    playbook : Playbook
+        Game data to use.
     """
 
-    def __init__(self, game_file: str) -> None:
-        self._initialize_game_from_file(game_file)
-        self._validate_initialized_game()
-
-    def _initialize_game_from_file(self, game_file: str) -> None:
-        """Initializes this `Game` based on data from a JSON file.
-
-        Parameters
-        ----------
-        game_file : str
-            Path to the JSON file to initialize this ´Game` with.
-
-        Raises
-        --------
-        GameDataError
-            If the JSON file cannot be properly loaded.
-        """
-
-        try:
-            with open(game_file, mode="r", encoding="utf-8") as input_file:
-                json_data = json.load(input_file)
-        except JSONDecodeError as e:
-            raise GameDataError("Invalid game file format.") from e
-        except FileNotFoundError as e:
-            raise GameDataError("Game file not found.") from e
-        except OSError as e:
-            raise GameDataError("Unable to load game file.") from e
-
-        self._initialize_game_from_data(json_data)
-
-    def _initialize_game_from_data(self, data: dict[str, Any]) -> None:
-        """Initializes this `Game` based on supplied data.
-
-        Parameters
-        ----------
-        data: dict
-            Supports keys "start", "items", "locations", and "endings".
-        """
-        self._initialize_start(data.get("start"))
-        self._initialize_items(data.get("items"))
-        self._initialize_locations(data.get("locations"))
-        self._initialize_endings(data.get("endings"))
-
-    def _initialize_start(self, start: Any) -> None:
-        """Initializes the start conditions of the game based on start data.
-
-        Parameters
-        ----------
-        start: dict
-            Start conditions of the game.
-
-        Raises
-        ------
-        GameDataError
-            If the start conditions contains errors or are missing.
-        """
-
-    def _initialize_items(self, items: Any) -> None:
-        """Initializes items in the game based on the supplied item data.
-
-        Parameters
-        ----------
-        items: list of dict
-            List of items to add to the game.
-
-        Raises
-        ------
-        GameDataError
-            If the items contains errors.
-        """
-
-    def _initialize_locations(self, locations: Any) -> None:
-        """Initializes locations in the game based on the supplied location data.
-
-        Parameters
-        ----------
-        locations: list of dict
-            List of locations to add to the game.
-
-        Raises
-        ------
-        GameDataError
-            If the locations contains errors.
-        """
-
-    def _initialize_endings(self, endings: Any) -> None:
-        """Initializes endings of the game based on the supplied ending data.
-
-        Parameters
-        ----------
-        endings: list of dict
-            List of endings to add to the game.
-
-        Raises
-        ------
-        GameDataError
-            If the endings contains errors.
-        """
-
-    def _validate_initialized_game(self) -> None:
-        """Validates the integrity of an initialized `Game`.
-
-        Raises
-        ------
-        GameDataError
-            If the initializes `Game` contains obvious errors.
-        """
+    def __init__(self, playbook: Playbook) -> None:
+        self.playbook = playbook
+        self.ending = ""
 
     def play(self) -> None:
         """Plays an adventure game."""
-        # TODO: Implement
-        pass
+        self.prologue()
+
+        while not self.ending:
+            action = self.select_action()
+            consequences = self.execute_action(action)
+            self.present_consequences(consequences)
+
+        self.epilogue()
+
+    @abstractmethod
+    def prologue(self) -> None:
+        """Introduces the game to the player."""
+
+    @abstractmethod
+    def select_action(self) -> Action:
+        """Lets the player select an action for the turn.
+
+        Provides the player with relevant information about the current situation and a way to
+        pick an action to perform.
+
+        Returns
+        -------
+        Action
+            The `Action` selected by the player.
+        """
+
+    @abstractmethod
+    def present_consequences(self, consequences: Sequence[str]) -> None:
+        """Presents the observable consequences of an action.
+
+        Parameters
+        ----------
+        consequences: Sequence[str]
+            Consequences of the action taken.
+        """
+
+    @abstractmethod
+    def epilogue(self):
+        """Concludes the game."""
+
+    def execute_action(self, action: Action) -> Sequence[str]:
+        """Executes an action, i.e. plays the turn.
+
+        Parameters
+        ----------
+        action: Action
+            The `Action´ to perform.
+
+        Returns
+        -------
+        Sequence[str]:
+            The consequences of executing the requested action.
+
+        Raises
+        ------
+        ActionError:
+            If the `Action` is not supported.
+        """
+        if isinstance(action, NoAction):
+            return ()
+
+        if isinstance(action, QuitAction):
+            self.ending = "Player gave up!"
+            return ("Quitting.",)
+
+        self.playbook.state.update_turn(1)
+        consequences = []
+
+        if isinstance(action, UseAction):
+            consequences.extend(self._execute_use_action(action))
+        elif isinstance(action, MoveAction):
+            consequences.extend(self._execute_move_action(action))
+        elif isinstance(action, TakeAction):
+            consequences.extend(self._execute_take_action(action))
+        else:
+            raise ActionError(f"Unsupported Action: {action}")
+
+        ending = self.playbook.story.get_ending(self.playbook.state)
+        if ending:
+            self.ending = ending.reason
+            consequences.append(self.ending)
+
+        return consequences
+
+    def _execute_use_action(self, action: UseAction) -> list[str]:
+        if not action.item:
+            return ["There is no use."]
+
+        available_items = self.playbook.get_available_items()
+
+        if not action.item in available_items:
+            return [f"{action.item} not available."]
+
+        if not action.target:
+            return [f"Use {action.item} on what?"]
+
+        if not action.target in available_items:
+            return [f"{action.target} not available."]
+
+        target = available_items[action.target]
+        if isinstance(target, LockableContainerItem):
+            return self._execute_use_on_lockable_container(
+                container=target, key=action.item
+            )
+
+        return [f"Can't use {action.item} on {action.target}."]
+
+    def _execute_use_on_lockable_container(
+        self, container: LockableContainerItem, key: str
+    ) -> list[str]:
+        result = []
+
+        if not container.key or container.key == key:
+            result.append(f"{key} unlocked {container.name}!")
+            for item_name in container.contents:
+                self.playbook.add_item_to_location(
+                    self.playbook.state.location, item_name
+                )
+                result.append(f"{item_name} discovered!")
+        else:
+            result.append(f"{key} didn't work on {container.name}.")
+
+        return result
+
+    def _execute_move_action(self, action: MoveAction) -> list[str]:
+        location = self.playbook.get_current_location()
+        new_location_name = location.destinations.get(action.destination)
+        if not new_location_name:
+            raise ActionError(
+                f"Missing destination {action.destination} for {location.name}."
+            )
+        self.playbook.state.location = new_location_name
+
+        return [f"Moved {action.destination} to {new_location_name}"]
+
+    def _execute_take_action(self, action: TakeAction) -> list[str]:
+        if action.item in self.playbook.state.inventory:
+            return [f"You already have {action.item}"]
+
+        location = self.playbook.get_current_location()
+        if not action.item in location.items:
+            return [f"Can't take {action.item}, it's not here!"]
+
+        item = self.playbook.get_item_by_name(action.item)
+        if not item.takeable:
+            return [f"Can't take {action.item}!"]
+
+        self.playbook.add_item_to_inventory(action.item)
+        return [f"You now have {action.item}"]
 
 
 class TextAdventureGame(AdventureGame):
     """Class for representing a text adventure game.
 
-    Parameters
+    Attributes
     ----------
-    game_file : str
-        Path to the game file to play.
-
-    Raises
-    --------
-    GameDataError
-        If the game file cannot be loaded.
+    playbook : Playbook
+        Game data.
+        Inherited from `AdventureGame`.
+    ending: Ending
+        The reason the game ended, or `None` if the game has not ended.
+        Inherited from `AdventureGame`.
     """
 
-    def __init__(self, game_file: str) -> None:
-        super().__init__(game_file)
+    def prologue(self) -> None:
+        """Introduces the game to the player."""
+        print(self.playbook.story.prologue)
+        print()
+
+    def select_action(self) -> Action:
+        """Lets the player select an action for the turn.
+
+        Provides the player with relevant information about the current situation and a way to
+        pick an action to perform.
+
+        Returns
+        -------
+        Action
+            The `Action` selected by the player.
+        """
+        self._print_location_description()
+
+        while True:
+            print("What do you want to do? (HELP for help)")
+            command = input("> ").strip()
+            upper_command = command.upper()
+
+            if upper_command == "HELP":
+                self._print_help()
+            else:
+                try:
+                    if upper_command == "QUIT":
+                        return QuitAction()
+                    if upper_command.startswith("USE "):
+                        return self._parse_use_action(command[4:])
+                    if upper_command.startswith("TAKE "):
+                        return self._parse_take_action(command[5:])
+                    if upper_command.startswith("GO "):
+                        return self._parse_go_action(command[3:])
+                    raise ActionError(f"No idea what {command} means!")
+                except ActionError as e:
+                    print(f"Error! {e}")
+
+    def _print_help(self):
+        help_text = f"""
+Valid Commands in the Turn of Our Lord {self.playbook.state.turn_no}:
+
+GO [direction]
+    Example: GO NORTH
+USE [item] ON [other item]
+    Example: USE KEY ON CHEST
+TAKE [item]
+    Example: TAKE SKULL
+HELP
+    Example: HELP
+QUIT
+    Example: QUIT
+"""
+        print(help_text)
+
+    def _print_location_description(self):
+        location = self.playbook.get_current_location()
+
+        print(f"Turn #{self.playbook.state.turn_no}: {location.name}")
+        print()
+        print(f"{location.description}")
+        print()
+
+        if location.items:
+            print("You can see the following items here:")
+            for item in [
+                self.playbook.get_item_by_name(item_name)
+                for item_name in location.items
+            ]:
+                print(f"{item.name}: {item.description}")
+            print()
+
+        if location.destinations:
+            print("You can see the following exits:")
+            for direction in location.destinations:
+                print(direction)
+            print()
+
+        if self.playbook.state.inventory:
+            print("You have the following items:")
+            for item_name in self.playbook.state.inventory:
+                item = self.playbook.get_item_by_name(item_name)
+                print(f"{item.name}: {item.description}")
+            print()
+
+    def _parse_go_action(self, param):
+        destination = param.upper()
+        if not destination in self.playbook.get_current_location().destinations:
+            raise ActionError(f"Invalid destination: {param}")
+        return MoveAction(destination)
+
+    def _parse_use_action(self, param):
+        upper_param = param.upper()
+
+        item = self._extract_item(upper_param)
+        target = self._extract_target(upper_param)
+
+        if not item or not target:
+            raise ActionError(f"Can't use {param}!")
+
+        return UseAction(item, target)
+
+    def _extract_item(self, param):
+        available_items = self.playbook.get_available_items()
+        for item in available_items.keys():
+            if param.startswith(item):
+                return item
+        return None
+
+    def _extract_target(self, param):
+        available_items = self.playbook.get_available_items()
+        for item in available_items.keys():
+            if param.endswith(item):
+                return item
+        return None
+
+    def _parse_take_action(self, param):
+        item = param.upper()
+        if not item in self.playbook.get_available_items():
+            raise ActionError(f"Invalid item: {param}")
+        return TakeAction(item)
+
+    def present_consequences(self, consequences: Sequence[str]) -> None:
+        """Presents observable consequences of an action.
+
+        Parameters
+        ----------
+        consequences: Sequence[str]
+            Consequences of the action taken.
+        """
+        for consequence in consequences:
+            print(consequence)
+
+    def epilogue(self):
+        """Concludes the game."""
+        print(self.playbook.story.epilogue)
