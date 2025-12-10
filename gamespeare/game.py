@@ -25,8 +25,6 @@ class AdventureGame(ABC):
         Game data.
     ending: str
         The reason the game ended, or empty if the game has not ended.
-    turn_no: int
-        Turn counter.
 
     Parameters
     ----------
@@ -37,7 +35,6 @@ class AdventureGame(ABC):
     def __init__(self, playbook: Playbook) -> None:
         self.playbook = playbook
         self.ending = ""
-        self.turn_no = 1
 
     def play(self) -> None:
         """Plays an adventure game."""
@@ -106,7 +103,7 @@ class AdventureGame(ABC):
             self.ending = "Player gave up!"
             return ("Quitting.",)
 
-        self.turn_no = self.turn_no + 1
+        self.playbook.state.update_turn(1)
         consequences = []
 
         if isinstance(action, UseAction):
@@ -118,14 +115,10 @@ class AdventureGame(ABC):
         else:
             raise ActionError(f"Unsupported Action: {action}")
 
-        for potential_ending in self.playbook.endings:
-            game_over = potential_ending.evaluate(
-                self.turn_no, self.playbook.location.name, self.playbook.inventory
-            )
-            if game_over:
-                self.ending = potential_ending.reason
-                consequences.append(self.ending)
-                break
+        ending = self.playbook.story.get_ending(self.playbook.state)
+        if ending:
+            self.ending = ending.reason
+            consequences.append(self.ending)
 
         return consequences
 
@@ -156,10 +149,13 @@ class AdventureGame(ABC):
         self, container: LockableContainerItem, key: str
     ) -> list[str]:
         result = []
+
         if not container.key or container.key == key:
             result.append(f"{key} unlocked {container.name}!")
             for item_name in container.contents:
-                self.playbook.add_item_to_location(self.playbook.location, item_name)
+                self.playbook.add_item_to_location(
+                    self.playbook.state.location, item_name
+                )
                 result.append(f"{item_name} discovered!")
         else:
             result.append(f"{key} didn't work on {container.name}.")
@@ -167,21 +163,22 @@ class AdventureGame(ABC):
         return result
 
     def _execute_move_action(self, action: MoveAction) -> list[str]:
-        new_location_name = self.playbook.location.destinations.get(action.destination)
+        location = self.playbook.get_current_location()
+        new_location_name = location.destinations.get(action.destination)
         if not new_location_name:
             raise ActionError(
-                f"Missing destination {action.destination} for {self.playbook.location.name}."
+                f"Missing destination {action.destination} for {location.name}."
             )
-
-        self.playbook.location = self.playbook.get_location_by_name(new_location_name)
+        self.playbook.state.location = new_location_name
 
         return [f"Moved {action.destination} to {new_location_name}"]
 
     def _execute_take_action(self, action: TakeAction) -> list[str]:
-        if action.item in self.playbook.inventory:
+        if action.item in self.playbook.state.inventory:
             return [f"You already have {action.item}"]
 
-        if not action.item in self.playbook.location.items:
+        location = self.playbook.get_current_location()
+        if not action.item in location.items:
             return [f"Can't take {action.item}, it's not here!"]
 
         item = self.playbook.get_item_by_name(action.item)
@@ -203,14 +200,11 @@ class TextAdventureGame(AdventureGame):
     ending: Ending
         The reason the game ended, or `None` if the game has not ended.
         Inherited from `AdventureGame`.
-    turn_no: int
-        Turn counter.
-        Inherited from `AdventureGame`.
     """
 
     def prologue(self) -> None:
         """Introduces the game to the player."""
-        print(self.playbook.prologue)
+        print(self.playbook.story.prologue)
         print()
 
     def select_action(self) -> Action:
@@ -251,32 +245,38 @@ class TextAdventureGame(AdventureGame):
         raise NotImplementedError()
 
     def _print_location_description(self):
-        print(f"Turn #{self.turn_no}: {self.playbook.location.name}")
+        location = self.playbook.get_current_location()
+
+        print(f"Turn #{self.playbook.state.turn_no}: {location.name}")
         print()
-        print(f"{self.playbook.location.description}")
+        print(f"{location.description}")
         print()
 
-        if self.playbook.location.items:
+        if location.items:
             print("You can see the following items here:")
-            for item_name in self.playbook.location.items:
-                print(self.playbook.get_item_by_name(item_name))
+            for item in [
+                self.playbook.get_item_by_name(item_name)
+                for item_name in location.items
+            ]:
+                print(f"{item.name}: {item.description}")
             print()
 
-        if self.playbook.location.destinations:
+        if location.destinations:
             print("You can see the following exits:")
-            for direction in self.playbook.location.destinations:
+            for direction in location.destinations:
                 print(direction)
             print()
 
-        if self.playbook.inventory:
+        if self.playbook.state.inventory:
             print("You have the following items:")
-            for item_name in self.playbook.inventory:
-                print(self.playbook.get_item_by_name(item_name))
+            for item_name in self.playbook.state.inventory:
+                item = self.playbook.get_item_by_name(item_name)
+                print(f"{item.name}: {item.description}")
             print()
 
     def _parse_go_action(self, param):
         destination = param.upper()
-        if not destination in self.playbook.location.destinations:
+        if not destination in self.playbook.get_current_location().destinations:
             raise ActionError(f"Invalid destination: {param}")
         return MoveAction(destination)
 
@@ -324,4 +324,4 @@ class TextAdventureGame(AdventureGame):
 
     def epilogue(self):
         """Concludes the game."""
-        print(self.playbook.epilogue)
+        print(self.playbook.story.epilogue)

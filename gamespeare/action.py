@@ -1,5 +1,20 @@
 """Module for classes related to actions."""
+
 from abc import ABC
+
+
+class ActionError(Exception):
+    """Exception raised when an action is invalid.
+
+    Attributes
+    ----------
+        message: str
+            Explanation of the error.
+    """
+
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(self.message)
 
 
 class Action(ABC):
@@ -49,17 +64,3 @@ class MoveAction(Action):
 
     def __str__(self):
         return f"Go {self.destination}"
-
-
-class ActionError(Exception):
-    """Exception raised when an action is invalid.
-
-    Attributes
-    ----------
-        message: str
-            Explanation of the error.
-    """
-
-    def __init__(self, message: str) -> None:
-        self.message = message
-        super().__init__(self.message)

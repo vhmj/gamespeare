@@ -1,8 +1,10 @@
 """Module for representing items."""
 
+from dataclasses import dataclass
 from typing import Any
 
 
+@dataclass
 class Item:
     """Class representing an item.
 
@@ -14,32 +16,11 @@ class Item:
         Description of the item.
     takeable: bool
         `True` if the item can be taken, `False` otherwise.
-
-    Parameters
-    ----------
-    name: str
-        Unique name of the item.
-    description: str
-        Description of the item.
-    takeable: bool
-        `True` if the item can be taken, `False` otherwise.
     """
 
-    def __init__(self, name: str, description: str, takeable: bool = True):
-        self.name = name
-        self.description = description
-        self.takeable = takeable
-
-    def __str__(self):
-        return f"{self.name}: {self.description}"
-
-    def __repr__(self):
-        attributes_repr = (
-            f"name={self.name},"
-            f"description={self.description},"
-            f"takeable={self.takeable}"
-        )
-        return f"{type(self).__name__}({attributes_repr})"
+    name: str
+    description: str
+    takeable: bool
 
 
 def create_item(data: Any) -> Item:
@@ -66,6 +47,7 @@ def create_item(data: Any) -> Item:
     return Item(name=name, description=description, takeable=takeable)
 
 
+@dataclass
 class LockableContainerItem(Item):
     """Class representing an item that can contain other items and be locked.
 
@@ -82,44 +64,12 @@ class LockableContainerItem(Item):
         Inherited from `Item`.
     key: str
         Name of the item representing the key, or `None` for no key required.
-    contents: list of str
-        List of the names of the items in this container, or `None` for no items.
-
-    Parameters
-    ----------
-    name: str
-        Unique name of the item.
-    description: str
-        Description of the item.
-    takeable: bool
-        `True` if the item can be taken, `False` otherwise.
-    key: str or None
-        Name of the item representing the key, or `None` for no key required.
-    contents: list of str or None
-        List of the names of the items in this container, or `None` for no items.
+    contents: set of str
+        Set of the names of the items in this container.
     """
 
-    def __init__(
-        self,
-        name: str,
-        description: str,
-        takeable: bool = False,
-        key: str | None = None,
-        contents: list[str] | None = None,
-    ):
-        super().__init__(name, description, takeable)
-        self.key = key
-        self.contents = contents or []
-
-    def __repr__(self):
-        attributes_repr = (
-            f"name={self.name},"
-            f"description={self.description},"
-            f"takeable={self.takeable},"
-            f"key={self.key},"
-            f"contents={self.contents}"
-        )
-        return f"{type(self).__name__}({attributes_repr})"
+    key: str
+    contents: set[str]
 
 
 def create_lockable_container_item(data: Any) -> LockableContainerItem:
@@ -147,7 +97,7 @@ def create_lockable_container_item(data: Any) -> LockableContainerItem:
     description = str(data.get("description")).strip()
     takeable = bool(data.get("takeable", False))
     key = str(data.get("key", "")).strip()
-    contents = [str(item).strip() for item in data.get("contents", [])]
+    contents = {str(item).strip() for item in data.get("contents", [])}
 
     return LockableContainerItem(
         name=name,

@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 from random import random
 from typing import Any, Iterable
 
+from gamespeare.state import State
+
 
 class Ending(ABC):
     """Class for representing a way to end a game.
@@ -26,17 +28,13 @@ class Ending(ABC):
         return self.reason
 
     @abstractmethod
-    def evaluate(self, turn_no: int, location: str, items: Iterable[str]) -> bool:
+    def evaluate(self, state: State) -> bool:
         """Evaluates the supplied state of the game to determine if it should end.
 
         Parameters
         ----------
-        turn_no: int
-            The number of turns played.
-        location: str
-            The name of the current location.
-        items: iterable of str
-            The items in the player's possession.
+        state: State
+            The game state to evaluate against.
 
         Returns
         -------
@@ -91,27 +89,23 @@ class GoalBasedEnding(Ending):
         )
         return f"{type(self).__name__}({attributes_repr})"
 
-    def evaluate(self, turn_no: int, location: str, items: Iterable[str]) -> bool:
+    def evaluate(self, state: State) -> bool:
         """Evaluates the supplied state of the game to determine if it should end.
 
         Parameters
         ----------
-        turn_no: int
-            The number of turns played.
-        location: str
-            The name of the current location.
-        items: iterable of str
-            The items in the player's possession.
+        state: State
+            The game state to evaluate against.
 
         Returns
         -------
         bool:
             `True` if the condition matches the ending, `False` otherwise.
         """
-        if self.location and not self.location == location:
+        if self.location and not self.location == state.location:
             return False
 
-        if not self.items.issubset(items):
+        if not self.items.issubset(state.inventory):
             return False
 
         return True
@@ -161,24 +155,20 @@ class TimeBasedEnding(Ending):
         attributes_repr = f"reason={self.reason}," f"turn_limit={self.turn_limit}"
         return f"{type(self).__name__}({attributes_repr})"
 
-    def evaluate(self, turn_no: int, location: str, items: Iterable[str]) -> bool:
+    def evaluate(self, state: State) -> bool:
         """Evaluates the supplied state of the game to determine if it should end.
 
         Parameters
         ----------
-        turn_no: int
-            The number of turns played.
-        location: str
-            The name of the current location.
-        items: iterable of str
-            The items in the player's possession.
+        state: State
+            The game state to evaluate against.
 
         Returns
         -------
         bool:
             `True` if the condition matches the ending, `False` otherwise.
         """
-        return turn_no >= self.turn_limit
+        return state.turn_no >= self.turn_limit
 
 
 def create_time_based_ending(data: Any) -> TimeBasedEnding:
@@ -215,17 +205,13 @@ class RandomEnding(Ending):
         attributes_repr = f"reason={self.reason}," f"probability={self.probability}"
         return f"{type(self).__name__}({attributes_repr})"
 
-    def evaluate(self, turn_no: int, location: str, items: Iterable[str]) -> bool:
-        """Tests if the game should end.
+    def evaluate(self, state: State) -> bool:
+        """Evaluates the supplied state of the game to determine if it should end.
 
         Parameters
         ----------
-        turn_no: int
-            The number of turns played.
-        location: str
-            The name of the current location.
-        items: iterable of str
-            The items in the player's possession.
+        state: State
+            The game state to evaluate against.
 
         Returns
         -------
