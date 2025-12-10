@@ -242,7 +242,21 @@ class TextAdventureGame(AdventureGame):
                     print(f"Error! {e}")
 
     def _print_help(self):
-        raise NotImplementedError()
+        help_text = f"""
+Valid Commands in the Turn of Our Lord {self.playbook.state.turn_no}:
+
+GO [direction]
+    Example: GO NORTH
+USE [item] ON [other item]
+    Example: USE KEY ON CHEST
+TAKE [item]
+    Example: TAKE SKULL
+HELP
+    Example: HELP
+QUIT
+    Example: QUIT
+"""
+        print(help_text)
 
     def _print_location_description(self):
         location = self.playbook.get_current_location()
