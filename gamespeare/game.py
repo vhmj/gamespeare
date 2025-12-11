@@ -33,6 +33,8 @@ class AdventureGame(ABC):
     """
 
     def __init__(self, playbook: Playbook) -> None:
+        if not playbook:
+            raise ValueError("Missing playbook")
         self.playbook = playbook
         self.ending = ""
 

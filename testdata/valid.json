@@ -1,0 +1,77 @@
+{
+  "world": {
+    "items": [
+      {
+        "class": "ITEM",
+        "name": "SKULL",
+        "description": "Yorick's skull"
+      },
+      {
+        "class": "ITEM",
+        "name": "KEY",
+        "description": "A small key"
+      },
+      {
+        "class": "CONTAINER",
+        "name": "CHEST",
+        "description": "A sturdy chest",
+        "key": "KEY",
+        "contents": [
+          "SKULL"
+        ]
+      }
+    ],
+    "locations": [
+      {
+        "class": "LOCATION",
+        "name": "ROOM",
+        "description": "A room in the castle. Pretty cozy.",
+        "items": [
+          "CHEST"
+        ],
+        "destinations": {
+          "NORTH": "HALL"
+        }
+      },
+      {
+        "class": "LOCATION",
+        "name": "HALL",
+        "description": "A hallway in the castle. Very spartan.",
+        "destinations": {
+          "SOUTH": "ROOM"
+        }
+      }
+    ]
+  },
+  "story": {
+    "prologue": "prologue",
+    "epilogue": "epilogue",
+    "endings": [
+      {
+        "class": "RANDOM",
+        "reason": "random",
+        "probability": 0.47
+      },
+      {
+        "class": "TURNS",
+        "reason": "turns",
+        "turn_limit": 20
+      },
+      {
+        "class": "GOAL",
+        "reason": "goal",
+        "location": "ROOM",
+        "items": [
+          "KEY"
+        ]
+      }
+    ]
+  },
+  "state": {
+    "turn_no": 123,
+    "location": "ROOM",
+    "inventory": [
+      "KEY"
+    ]
+  }
+}
