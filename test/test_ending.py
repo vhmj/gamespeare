@@ -4,12 +4,12 @@ import random
 import unittest
 
 from gamespeare.ending import (
+    GoalBasedEnding,
     RandomEnding,
+    TimeBasedEnding,
+    create_goal_based_ending,
     create_random_ending,
     create_time_based_ending,
-    TimeBasedEnding,
-    GoalBasedEnding,
-    create_goal_based_ending,
 )
 from gamespeare.state import State
 
