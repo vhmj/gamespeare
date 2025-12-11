@@ -154,7 +154,7 @@ class AdventureGame(ABC):
 
         if not container.key or container.key == key:
             result.append(f"{key} unlocked {container.name}!")
-            for item_name in container.contents:
+            for item_name in list(container.contents):
                 self.playbook.add_item_to_location(
                     self.playbook.state.location, item_name
                 )
