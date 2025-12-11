@@ -1,0 +1,16 @@
+{
+  "world": {
+    "items": [],
+    "locations": [
+      {
+        "class": "LOCATION",
+        "name": "ROOM",
+        "description": "A room in the castle. Pretty cozy."
+      }
+    ]
+  },
+  "state": {
+    "turn_no": 123,
+    "location": "ROOM"
+  }
+}

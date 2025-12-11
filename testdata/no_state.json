@@ -1,0 +1,23 @@
+{
+  "world": {
+    "items": [],
+    "locations": [
+      {
+        "class": "LOCATION",
+        "name": "ROOM",
+        "description": "A room in the castle. Pretty cozy."
+      }
+    ]
+  },
+  "story": {
+    "prologue": "prologue",
+    "epilogue": "epilogue",
+    "endings": [
+      {
+        "class": "GOAL",
+        "reason": "goal",
+        "location": "ROOM"
+      }
+    ]
+  }
+}

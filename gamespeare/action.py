@@ -1,6 +1,7 @@
-"""Module for classes related to actions."""
+"""Module for classes and functions related to actions."""
 
 from abc import ABC
+from dataclasses import dataclass
 
 
 class ActionError(Exception):
@@ -8,8 +9,8 @@ class ActionError(Exception):
 
     Attributes
     ----------
-        message: str
-            Explanation of the error.
+    message: str
+        Explanation of the error.
     """
 
     def __init__(self, message: str) -> None:
@@ -17,10 +18,12 @@ class ActionError(Exception):
         super().__init__(self.message)
 
 
+@dataclass
 class Action(ABC):
     """Base class for player actions."""
 
 
+@dataclass
 class QuitAction(Action):
     """Action representing player's choice to quit."""
 
@@ -28,6 +31,7 @@ class QuitAction(Action):
         return "Quit"
 
 
+@dataclass
 class NoAction(Action):
     """Action representing inaction that won't count as a turn."""
 
@@ -35,32 +39,52 @@ class NoAction(Action):
         return "No action"
 
 
+@dataclass
 class UseAction(Action):
-    """Action representing player's attempt at using item."""
+    """Action representing player's attempt at using item.
 
-    def __init__(self, item: str, target: str):
-        self.item = item
-        self.target = target
+    Attributes
+    ----------
+    item: str
+        Name of the item to use.
+    target: str
+        Name of the use target item.
+    """
+
+    item: str
+    target: str
 
     def __str__(self):
         return f"Use {self.item} on {self.target}"
 
 
+@dataclass
 class TakeAction(Action):
-    """Action representing player's attempt at taking item."""
+    """Action representing player's attempt at taking item.
 
-    def __init__(self, item: str):
-        self.item = item
+    Attributes
+    ----------
+    item: str
+        Name of the item to take.
+    """
+
+    item: str
 
     def __str__(self):
         return f"Take {self.item}"
 
 
+@dataclass
 class MoveAction(Action):
-    """Action representing player's attempt at moving locations."""
+    """Action representing player's attempt at moving locations.
 
-    def __init__(self, destination: str):
-        self.destination = destination
+    Attributes
+    ----------
+    destination: str
+        Name of the destination to move to.
+    """
+
+    destination: str
 
     def __str__(self):
         return f"Go {self.destination}"

@@ -1,0 +1,17 @@
+{
+  "story": {
+    "prologue": "prologue",
+    "epilogue": "epilogue",
+    "endings": [
+      {
+        "class": "GOAL",
+        "reason": "goal",
+        "location": "ROOM"
+      }
+    ]
+  },
+  "state": {
+    "turn_no": 123,
+    "location": "ROOM"
+  }
+}

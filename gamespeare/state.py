@@ -1,8 +1,15 @@
 """Module for state related classes and functions."""
 
 from dataclasses import dataclass
+from typing import Any
 
-from gamespeare.utils import GameDataError, get_missing_entries, validate_keyword
+from gamespeare.utils import (
+    GameDataError,
+    get_int,
+    get_missing_entries,
+    get_string,
+    validate_keyword,
+)
 from gamespeare.world import World
 
 
@@ -43,7 +50,7 @@ class State:
 
         Raises
         ------
-        PlaybookError
+        GameDataError
             Raised if the state contains obvious errors.
         """
         self._validate_round_no()
@@ -55,7 +62,7 @@ class State:
 
         Raises
         ------
-        PlaybookError
+        GameDataError
             Raised if the round number contain obvious errors.
         """
         if self.turn_no < 1:
@@ -71,7 +78,7 @@ class State:
 
         Raises
         ------
-        PlaybookError
+        GameDataError
             Raised if the current location contains obvious errors.
         """
         validate_keyword(self.location, "State Location")
@@ -88,10 +95,68 @@ class State:
 
         Raises
         ------
-        PlaybookError
+        GameDataError
             Raised if the inventory contains obvious errors.
         """
         for missing_item_name in get_missing_entries(self.inventory, world.items):
             raise GameDataError(
                 f'State Inventory Item "{missing_item_name}"  does not exist.'
             )
+
+
+def create_state(data: Any) -> State:
+    """Creates a `State` from dict-like data.
+
+    Parameters
+    ----------
+    data: Any
+        A dict-like object with the key `turn_no` with a positive `int` value,
+        the key and `location` with non-empty `str` value representing a location
+        name, and optionally the key `inventory` with a list of non-empty `str`
+        values representing item names.
+
+    Returns
+    -------
+    State
+        A `State` initialized from `data`.
+
+    Raises
+    ------
+    ValueError
+        Raised if `data` was invalid.
+    """
+    if not data:
+        raise ValueError("Missing state data")
+
+    turn_no = get_int(data, "turn_no")
+    location = get_string(data, "location")
+    inventory = _create_inventory(data.get("inventory"))
+
+    return State(turn_no=turn_no, location=location, inventory=inventory)
+
+
+def _create_inventory(data: Any) -> set[str]:
+    """Creates an inventory list from iterable data.
+
+    Parameters
+    ----------
+    data: Any
+        An iterable object with non-empty `str` values representing item names.
+
+    Returns
+    -------
+    Set of str
+        An inventory initialized from `data`.
+
+    Raises
+    ------
+    ValueError
+        Raised if `data` was invalid.
+    """
+    if not data:
+        return set()
+
+    try:
+        return {str(item_name).strip() for item_name in data}
+    except TypeError as e:
+        raise ValueError("Invalid inventory data") from e
