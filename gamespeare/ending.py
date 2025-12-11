@@ -207,7 +207,7 @@ def create_random_ending(data: Any) -> RandomEnding:
 
 
 def create_endings(data: Any) -> list[Ending]:
-    """Creates endings from dict-like data.
+    """Creates endings from a list of dict-like data.
 
     The key `class` is required, and the supported values are:
 
