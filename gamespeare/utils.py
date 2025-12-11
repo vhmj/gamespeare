@@ -107,17 +107,18 @@ def get_string(data: Any, key: str, empty_ok: bool = False) -> str:
         Raised if the key was missing or the value without content unless
         `empty_ok` is set.
     """
-    string = data.get(key)
-    if not string:
+    if not key in data:
         if empty_ok:
             return ""
         raise ValueError(f"Missing {key}")
 
-    clean_string = str(string).strip()
-    if not clean_string:
+    string = str(data[key]).strip()
+    if not string:
+        if empty_ok:
+            return ""
         raise ValueError(f"Empty {key}")
 
-    return clean_string
+    return string
 
 
 def get_float(data: Any, key: str) -> float:
