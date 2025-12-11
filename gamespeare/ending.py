@@ -1,12 +1,14 @@
 """Module with the classes for representing endings of a game."""
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from random import random
-from typing import Any, Iterable
+from typing import Any
 
 from gamespeare.state import State
 
 
+@dataclass
 class Ending(ABC):
     """Class for representing a way to end a game.
 
@@ -14,18 +16,9 @@ class Ending(ABC):
     ----------
     reason: str
         The reason to give when the ending is triggered.
-
-    Parameters
-    ----------
-    reason: str
-        The reason to give when the ending is triggered.
     """
 
-    def __init__(self, reason: str):
-        self.reason = reason
-
-    def __str__(self):
-        return self.reason
+    reason: str
 
     @abstractmethod
     def evaluate(self, state: State) -> bool:
@@ -43,6 +36,7 @@ class Ending(ABC):
         """
 
 
+@dataclass
 class GoalBasedEnding(Ending):
     """Class for representing a goal-based way to end a game.
 
@@ -55,39 +49,14 @@ class GoalBasedEnding(Ending):
     reason: str
         The reason to give when the ending is triggered.
         Inherited from `Ending`.
-    location: str or None
-        The required location, or `None` for no location required.
+    location: str
+        The required location, or empty for no location required.
     items: set of str
         Names of the required items to possess.
-
-    Parameters
-    ----------
-    reason: str
-        The reason to give when the ending is triggered.
-    location: str or None
-        The required location, empty string or `None` for no location required.
-    items: iterable of str or None
-        Names of the required items to possess, empty or `None` if no items are required.
     """
 
-    def __init__(
-        self,
-        reason: str,
-        location: str | None = None,
-        items: Iterable[str] | None = None,
-    ):
-        super().__init__(reason)
-        self.location = location
-        if items:
-            self.items = set(items)
-        else:
-            self.items = set()
-
-    def __repr__(self):
-        attributes_repr = (
-            f"reason={self.reason}," f"location={self.location}," f"items={self.items})"
-        )
-        return f"{type(self).__name__}({attributes_repr})"
+    location: str = ""
+    items: set[str] = field(default_factory=set[str])
 
     def evaluate(self, state: State) -> bool:
         """Evaluates the supplied state of the game to determine if it should end.
@@ -121,11 +90,11 @@ def create_goal_based_ending(data: Any) -> GoalBasedEnding:
         Optionally also key-value pair 'location'/compatible with str, and/or
         'items'/compatible with iterable of str.
     """
-    return GoalBasedEnding(
-        reason=str(data.get("reason")).strip(),
-        location=str(data.get("location", "")).strip(),
-        items=[str(item).strip() for item in data.get("items", [])],
-    )
+    reason = _get_string(data, "reason")
+    location = _get_string(data, "location", empty_ok=True)
+    items = {str(item).strip() for item in data.get("items", [])}
+
+    return GoalBasedEnding(reason=reason, location=location, items=items)
 
 
 class TimeBasedEnding(Ending):
@@ -180,15 +149,16 @@ def create_time_based_ending(data: Any) -> TimeBasedEnding:
         dict-like object with key-value pair 'turn_limit'/compatible with int
         (larger than 1), and 'reason'/compatible with str.
     """
-    return TimeBasedEnding(
-        reason=str(data.get("reason")), turn_limit=int(data.get("turn_limit"))
-    )
+    reason = _get_string(data, "reason")
+    turn_limit = _get_int(data, "turn_limit")
+    return TimeBasedEnding(reason=reason, turn_limit=turn_limit)
 
 
+@dataclass
 class RandomEnding(Ending):
     """A random ending triggering with a specified probability.
 
-    Parameters
+    Attributes
     ----------
     reason: str
         The reason given for the triggered ending.
@@ -197,13 +167,7 @@ class RandomEnding(Ending):
         The probability of the ending being triggered, in the range [0.0, 1.0].
     """
 
-    def __init__(self, reason: str, probability: float):
-        super().__init__(reason)
-        self.probability = probability
-
-    def __repr__(self):
-        attributes_repr = f"reason={self.reason}," f"probability={self.probability}"
-        return f"{type(self).__name__}({attributes_repr})"
+    probability: float
 
     def evaluate(self, state: State) -> bool:
         """Evaluates the supplied state of the game to determine if it should end.
@@ -229,7 +193,41 @@ def create_random_ending(data: Any) -> RandomEnding:
     data: Any
         dict-like object with key-value pair 'probability'/compatible with float
         in the range [0.0, 1.0], and 'reason'/compatible with str.
+
+    Raises
+    ------
+    ValueError
+        Raised if there is a problem with `data`.
     """
-    return RandomEnding(
-        reason=str(data.get("reason")), probability=float(data.get("probability"))
-    )
+    reason = _get_string(data, "reason")
+    probability = _get_float(data, "probability")
+
+    return RandomEnding(reason=reason, probability=probability)
+
+
+def _get_string(data: Any, key: str, empty_ok: bool = False) -> str:
+    string = data.get(key)
+    if not string:
+        if empty_ok:
+            return ""
+        raise ValueError(f"Missing {key}")
+
+    clean_string = str(string).strip()
+    if not clean_string:
+        raise ValueError(f"Empty {key}")
+
+    return clean_string
+
+
+def _get_float(data: Any, key: str) -> float:
+    try:
+        return float(data.get(key))
+    except TypeError as e:
+        raise ValueError(f"Invalid type for {key}") from e
+
+
+def _get_int(data: Any, key: str) -> int:
+    try:
+        return int(data.get(key))
+    except TypeError as e:
+        raise ValueError(f"Invalid type for {key}") from e

@@ -73,13 +73,13 @@ class Story:
         Prologue text to get the game started.
     epilogue: str
         Epilogue text to finish the game.
-    endings: set of Ending
+    endings: list of Ending
         Possible endings to the game.
     """
 
     prologue: str
     epilogue: str
-    endings: set[Ending]
+    endings: list[Ending]
 
     def get_ending(self, state: State) -> Ending | None:
         """Checks ending for a specific state.

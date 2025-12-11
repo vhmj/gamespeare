@@ -296,17 +296,17 @@ def _create_string(data: Any) -> str:
     return str(data).strip()
 
 
-def _create_endings(data: Any) -> set[Ending]:
-    endings: set[Ending] = set()
+def _create_endings(data: Any) -> list[Ending]:
+    endings: list[Ending] = []
 
     for entry in data:
         ending_class = entry.get("class")
         if ending_class == "RANDOM":
-            endings.add(create_random_ending(entry))
+            endings.append(create_random_ending(entry))
         elif ending_class == "TURNS":
-            endings.add(create_time_based_ending(entry))
+            endings.append(create_time_based_ending(entry))
         elif ending_class == "GOAL":
-            endings.add(create_goal_based_ending(entry))
+            endings.append(create_goal_based_ending(entry))
         else:
             raise GameDataError(f"Unsupported Ending class: {ending_class}")
 
