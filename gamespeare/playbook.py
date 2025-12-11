@@ -4,23 +4,15 @@ import json
 from json import JSONDecodeError
 from typing import Any
 
-from gamespeare.ending import (
-    Ending,
-    create_goal_based_ending,
-    create_random_ending,
-    create_time_based_ending,
-)
 from gamespeare.item import (
     Item,
     LockableContainerItem,
-    create_item,
-    create_lockable_container_item,
 )
-from gamespeare.location import Location, create_location
-from gamespeare.state import State
-from gamespeare.story import Story
+from gamespeare.location import Location
+from gamespeare.state import State, create_state
+from gamespeare.story import Story, create_story
 from gamespeare.utils import GameDataError
-from gamespeare.world import World
+from gamespeare.world import World, create_world
 
 
 class Playbook:
@@ -46,7 +38,7 @@ class Playbook:
 
     Raises
     --------
-    PlaybookError
+    GameDataError
         Error raised if the `Playbook` contains obvious errors.
     """
 
@@ -90,6 +82,8 @@ class Playbook:
         ValueError
             Error raised if supplied name is not a location in this `Playbook`.
         """
+        if not name in self.world.locations:
+            raise ValueError(f"Unknown location: {name}")
         return self.world.locations[name]
 
     def get_current_location(self) -> Location:
@@ -118,7 +112,7 @@ class Playbook:
         return {item_name: self.get_item_by_name(item_name) for item_name in item_names}
 
     def add_item_to_inventory(self, item_name: str) -> None:
-        """Adds an item to the player's inventory.
+        """Adds an item to the player's inventory if it is takeable.
 
         Parameters
         ----------
@@ -133,8 +127,9 @@ class Playbook:
         if not item_name in self.world.items:
             raise ValueError(f"Unknown item {item_name}")
 
-        self.remove_item(item_name)
-        self.state.inventory.add(item_name)
+        if self.world.items[item_name].takeable:
+            self.remove_item(item_name)
+            self.state.inventory.add(item_name)
 
     def add_item_to_location(self, location_name: str, item_name: str) -> None:
         """Adds an item to a location.
@@ -180,12 +175,12 @@ class Playbook:
             if item_name in location.items:
                 location.items.remove(item_name)
 
+        all_items = self.world.items.values()
         for container_item in [
-            item
-            for item in self.world.items
-            if (isinstance(item, LockableContainerItem) and item_name in item.contents)
+            i for i in all_items if (isinstance(i, LockableContainerItem))
         ]:
-            container_item.contents.remove(item_name)
+            if item_name in container_item.contents:
+                container_item.contents.remove(item_name)
 
 
 def from_file(playbook_file: str):
@@ -203,7 +198,7 @@ def from_file(playbook_file: str):
 
     Raises
     --------
-    PlaybookError
+    GameDataError
         If the playbook file cannot be properly loaded.
     """
     try:
@@ -234,92 +229,14 @@ def from_data(data: Any):
 
     Raises
     --------
-    PlaybookError
+    GameDataError
         If the playbook cannot be properly created.
     """
-    world = _create_world(data.get("world"))
-    story = _create_story(data.get("story"))
-    state = _create_state(data.get("state"))
+    try:
+        world = create_world(data.get("world"))
+        story = create_story(data.get("story"))
+        state = create_state(data.get("state"))
+    except ValueError as e:
+        raise GameDataError("Invalid playbook data.") from e
 
     return Playbook(world, story, state)
-
-
-def _create_world(data: Any) -> World:
-    items = _create_items(data.get("items"))
-    locations = _create_locations(data.get("locations"))
-
-    return World(items, locations)
-
-
-def _create_items(data: Any) -> dict[str, Item]:
-    items = {}
-
-    for entry in data:
-        item_class = entry.get("class")
-        if item_class == "ITEM":
-            item = create_item(entry)
-        elif item_class == "CONTAINER":
-            item = create_lockable_container_item(entry)
-        else:
-            raise GameDataError(f"Unsupported Item class: {item_class}")
-        items[item.name] = item
-
-    return items
-
-
-def _create_locations(data: Any) -> dict[str, Location]:
-    locations = {}
-
-    for entry in data:
-        location_class = entry.get("class")
-        if location_class == "LOCATION":
-            location = create_location(entry)
-        else:
-            raise GameDataError(f"Unsupported ending class: {location_class}")
-
-        locations[location.name] = location
-
-    return locations
-
-
-def _create_story(data: Any) -> Story:
-    prologue = _create_string(data.get("prologue"))
-    epilogue = _create_string(data.get("epilogue"))
-    endings = _create_endings(data.get("endings"))
-
-    return Story(prologue, epilogue, endings)
-
-
-def _create_string(data: Any) -> str:
-    if not data:
-        return ""
-    return str(data).strip()
-
-
-def _create_endings(data: Any) -> list[Ending]:
-    endings: list[Ending] = []
-
-    for entry in data:
-        ending_class = entry.get("class")
-        if ending_class == "RANDOM":
-            endings.append(create_random_ending(entry))
-        elif ending_class == "TURNS":
-            endings.append(create_time_based_ending(entry))
-        elif ending_class == "GOAL":
-            endings.append(create_goal_based_ending(entry))
-        else:
-            raise GameDataError(f"Unsupported Ending class: {ending_class}")
-
-    return endings
-
-
-def _create_state(data: Any) -> State:
-    turn_no = int(data.get("turn_no", 1))
-    location = _create_string(data.get("location"))
-    inventory = _create_inventory(data.get("inventory"))
-
-    return State(turn_no=turn_no, location=location, inventory=inventory)
-
-
-def _create_inventory(data: Any) -> set[str]:
-    return {_create_string(item_name) for item_name in data}

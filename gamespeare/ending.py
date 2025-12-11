@@ -6,6 +6,7 @@ from random import random
 from typing import Any
 
 from gamespeare.state import State
+from gamespeare.utils import get_float, get_int, get_string
 
 
 @dataclass
@@ -90,8 +91,8 @@ def create_goal_based_ending(data: Any) -> GoalBasedEnding:
         Optionally also key-value pair 'location'/compatible with str, and/or
         'items'/compatible with iterable of str.
     """
-    reason = _get_string(data, "reason")
-    location = _get_string(data, "location", empty_ok=True)
+    reason = get_string(data, "reason")
+    location = get_string(data, "location", empty_ok=True)
     items = {str(item).strip() for item in data.get("items", [])}
 
     return GoalBasedEnding(reason=reason, location=location, items=items)
@@ -149,8 +150,8 @@ def create_time_based_ending(data: Any) -> TimeBasedEnding:
         dict-like object with key-value pair 'turn_limit'/compatible with int
         (larger than 1), and 'reason'/compatible with str.
     """
-    reason = _get_string(data, "reason")
-    turn_limit = _get_int(data, "turn_limit")
+    reason = get_string(data, "reason")
+    turn_limit = get_int(data, "turn_limit")
     return TimeBasedEnding(reason=reason, turn_limit=turn_limit)
 
 
@@ -199,35 +200,47 @@ def create_random_ending(data: Any) -> RandomEnding:
     ValueError
         Raised if there is a problem with `data`.
     """
-    reason = _get_string(data, "reason")
-    probability = _get_float(data, "probability")
+    reason = get_string(data, "reason")
+    probability = get_float(data, "probability")
 
     return RandomEnding(reason=reason, probability=probability)
 
 
-def _get_string(data: Any, key: str, empty_ok: bool = False) -> str:
-    string = data.get(key)
-    if not string:
-        if empty_ok:
-            return ""
-        raise ValueError(f"Missing {key}")
+def create_endings(data: Any) -> list[Ending]:
+    """Creates endings from dict-like data.
 
-    clean_string = str(string).strip()
-    if not clean_string:
-        raise ValueError(f"Empty {key}")
+    The key `class` is required, and the supported values are:
 
-    return clean_string
+    * `GOAL` - See `create_goal_based_ending()` for additional requirements.
+    * `TURNS` - See `create_time_based_ending()` for additional requirements.
+    * `RANDOM` - See `create_random_ending()` for additional requirements.
 
+    Parameters
+    ----------
+    data: Any
+        A dict-like object with the key `class` and additional ending data.
 
-def _get_float(data: Any, key: str) -> float:
-    try:
-        return float(data.get(key))
-    except TypeError as e:
-        raise ValueError(f"Invalid type for {key}") from e
+    Returns
+    -------
+    list[Ending]
+        A list of `Ending` initialized from `data`.
 
+    Raises
+    ------
+    ValueError
+        Raised if `data` was invalid.
+    """
+    endings: list[Ending] = []
 
-def _get_int(data: Any, key: str) -> int:
-    try:
-        return int(data.get(key))
-    except TypeError as e:
-        raise ValueError(f"Invalid type for {key}") from e
+    for entry in data:
+        ending_class = entry.get("class")
+        if ending_class == "RANDOM":
+            endings.append(create_random_ending(entry))
+        elif ending_class == "TURNS":
+            endings.append(create_time_based_ending(entry))
+        elif ending_class == "GOAL":
+            endings.append(create_goal_based_ending(entry))
+        else:
+            raise ValueError(f"Unsupported Ending class: {ending_class}")
+
+    return endings

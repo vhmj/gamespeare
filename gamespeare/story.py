@@ -1,10 +1,22 @@
 """Module for story related classes and functions."""
 
 from dataclasses import dataclass
+from typing import Any
 
-from gamespeare.ending import Ending, GoalBasedEnding, RandomEnding, TimeBasedEnding
+from gamespeare.ending import (
+    Ending,
+    GoalBasedEnding,
+    RandomEnding,
+    TimeBasedEnding,
+    create_endings,
+)
 from gamespeare.state import State
-from gamespeare.utils import GameDataError, get_missing_entries, validate_string
+from gamespeare.utils import (
+    GameDataError,
+    get_missing_entries,
+    get_string,
+    validate_string,
+)
 from gamespeare.world import World
 
 
@@ -20,7 +32,7 @@ def validate_goal_based_ending(ending: GoalBasedEnding, world: World) -> None:
 
     Raises
     ------
-    PlaybookError
+    GameDataError
         Raised if the ending contain obvious errors.
     """
     for missing_item_name in get_missing_entries(ending.items, world.items):
@@ -39,7 +51,7 @@ def validate_time_based_ending(ending: TimeBasedEnding) -> None:
 
     Raises
     ------
-    PlaybookError
+    GameDataError
         Raised if the ending contain obvious errors.
     """
     if ending.turn_limit < 1:
@@ -56,7 +68,7 @@ def validate_random_ending(ending: RandomEnding) -> None:
 
     Raises
     ------
-    PlaybookError
+    GameDataError
         Raised if the ending contain obvious errors.
     """
     if ending.probability > 1.0 or ending.probability < 0.0:
@@ -109,7 +121,7 @@ class Story:
 
         Raises
         ------
-        PlaybookError
+        GameDataError
             Raised if the story contains obvious errors.
         """
         validate_string(self.prologue, "Prologue")
@@ -126,7 +138,7 @@ class Story:
 
         Raises
         ------
-        PlaybookError
+        GameDataError
             Raised if the endings contain obvious errors.
         """
         if not self.endings:
@@ -141,3 +153,33 @@ class Story:
                 validate_time_based_ending(ending)
             elif isinstance(ending, RandomEnding):
                 validate_random_ending(ending)
+
+
+def create_story(data: Any) -> Story:
+    """Creates a `Story` from dict-like data.
+
+    Parameters
+    ----------
+    data: Any
+        A dict-like object with the keys `prologue` and `epilogue` with `str`
+        values, and the key `endings` with a list of endings
+        (see `Ending.create_endings()`)
+
+    Returns
+    -------
+    Story
+        A `Story` initialized from `data`.
+
+    Raises
+    ------
+    ValueError
+        Raised if `data` was invalid.
+    """
+    if not data:
+        raise ValueError("Missing story data")
+
+    prologue = get_string(data, "prologue")
+    epilogue = get_string(data, "epilogue")
+    endings = create_endings(data.get("endings"))
+
+    return Story(prologue, epilogue, endings)

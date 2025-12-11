@@ -1,9 +1,10 @@
 """Module for world related classes and functions."""
 
 from dataclasses import dataclass
+from typing import Any
 
-from gamespeare.item import Item, LockableContainerItem
-from gamespeare.location import Location
+from gamespeare.item import Item, LockableContainerItem, create_items
+from gamespeare.location import Location, create_locations
 from gamespeare.utils import (
     GameDataError,
     get_missing_entries,
@@ -31,7 +32,7 @@ class World:
 
         Raises
         ------
-        PlaybookError
+        GameDataError
             Raised if the world contains obvious errors.
         """
         self._validate_items()
@@ -42,7 +43,7 @@ class World:
 
         Raises
         ------
-        PlaybookError
+        GameDataError
             Raised if the items in the world contains obvious errors.
         """
         for item_name, item in self.items.items():
@@ -71,7 +72,7 @@ class World:
 
         Raises
         ------
-        PlaybookError
+        GameDataError
             Raised if the locations in the world contains obvious errors.
         """
         if not self.locations:
@@ -99,3 +100,32 @@ class World:
                         f'for "{location_name}" does not exist.'
                     )
                     raise GameDataError(reason)
+
+
+def create_world(data: Any) -> World:
+    """Creates a `World` from dict-like data.
+
+    Parameters
+    ----------
+    data: Any
+        A dict-like object with the key `items` with a list of items
+        (see `item.create_items()`) as value, and the key `locations` with a
+        list of locations (see `location.create_locations()`) as value.
+
+    Returns
+    -------
+    World
+        A `World` initialized from `data`.
+
+    Raises
+    ------
+    ValueError
+        Raised if `data` was invalid.
+    """
+    if not data:
+        raise ValueError("Missing world data")
+
+    items = create_items(data.get("items"))
+    locations = create_locations(data.get("locations"))
+
+    return World(items, locations)

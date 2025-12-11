@@ -60,3 +60,39 @@ def create_location(data: Any) -> Location:
     }
 
     return Location(name, description, destinations, items)
+
+
+def create_locations(data: Any) -> dict[str, Location]:
+    """Creates locations from a list of dict-like data.
+
+    The key `class` is required, and the supported values are:
+
+    * `LOCATION` - See `create_location()` for additional requirements.
+
+    Parameters
+    ----------
+    data: Any
+        A list of dict-like objects with the key `class` and additional item data.
+
+    Returns
+    -------
+    dict of str:Item
+        A dict of locations initialized from `data`.
+
+    Raises
+    ------
+    ValueError
+        Raised if `data` was invalid.
+    """
+    locations = {}
+
+    for entry in data:
+        location_class = entry.get("class")
+        if location_class == "LOCATION":
+            location = create_location(entry)
+        else:
+            raise ValueError(f"Unsupported ending class: {location_class}")
+
+        locations[location.name] = location
+
+    return locations

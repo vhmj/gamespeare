@@ -12,6 +12,17 @@
         "description": "A small key"
       },
       {
+        "class": "ITEM",
+        "name": "ELEPHANT",
+        "description": "A pink elephant",
+        "takeable": "False"
+      },
+      {
+        "class": "ITEM",
+        "name": "ANT",
+        "description": "A small ant"
+      },
+      {
         "class": "CONTAINER",
         "name": "CHEST",
         "description": "A sturdy chest",
@@ -27,7 +38,9 @@
         "name": "ROOM",
         "description": "A room in the castle. Pretty cozy.",
         "items": [
-          "CHEST"
+          "ANT",
+          "CHEST",
+          "ELEPHANT"
         ],
         "destinations": {
           "NORTH": "HALL"
