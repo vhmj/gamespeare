@@ -6,6 +6,7 @@ from typing import Any
 
 from gamespeare.item import (
     Item,
+    ItemContainer,
     LockableContainerItem,
 )
 from gamespeare.location import Location
@@ -52,138 +53,92 @@ class Playbook:
         state.validate(world)
         self.state = state
 
-    def get_item_by_name(self, name: str) -> Item:
-        """Returns the item with the name `name`.
-
-        Returns
-        -------
-        Item
-            The item with the name `name`.
-
-        Raises
-        ------
-        ValueError
-            Error raised if supplied name is not an item in this `Playbook`.
-        """
-        if name in self.world.items:
-            return self.world.items[name]
-        raise ValueError(f"Unknown item: {name}")
-
-    def get_location_by_name(self, name: str) -> Location:
-        """Returns the location with the name `name`.
-
-        Returns
-        -------
-        Location
-            The location with the name `name`.
-
-        Raises
-        ------
-        ValueError
-            Error raised if supplied name is not a location in this `Playbook`.
-        """
-        if not name in self.world.locations:
-            raise ValueError(f"Unknown location: {name}")
-        return self.world.locations[name]
-
-    def get_current_location(self) -> Location:
-        """Returns the current location.
-
-        Returns
-        -------
-        Location
-            The current location.
-        """
-        return self.world.locations[self.state.location]
-
-    def get_available_items(self) -> dict[str, Item]:
+    def get_available_items(self) -> list[Item]:
         """Returns currently available items.
 
         This is the combination of player inventory and location contents.
 
         Returns
         -------
-        dict of str:Item
-            Currently available items, with the name as key.
+        list of Item
+            Currently available items.
         """
-        item_names = (
-            self.state.inventory | self.get_location_by_name(self.state.location).items
-        )
-        return {item_name: self.get_item_by_name(item_name) for item_name in item_names}
+        available_items = ItemContainer()
+        for item in self.state.inventory.items + self.state.location.items.items:
+            available_items.add_item(item, strict=False)
+        return available_items.items
 
-    def add_item_to_inventory(self, item_name: str) -> None:
+    def add_item_to_inventory(self, item: Item) -> None:
         """Adds an item to the player's inventory if it is takeable.
 
         Parameters
         ----------
-        item_name: str
-            The name of the item to add.
+        item: Item
+            The item to add.
 
         Raises
         ------
         ValueError
             Error raised if supplied name is not an item in this `Playbook`.
         """
-        if not item_name in self.world.items:
-            raise ValueError(f"Unknown item {item_name}")
+        if not self.world.items.contains_item(item):
+            raise ValueError(f"Alien item {item}")
 
-        if self.world.items[item_name].takeable:
-            self.remove_item(item_name)
-            self.state.inventory.add(item_name)
+        if item.takeable:
+            self.remove_item(item)
+            self.state.inventory.add_item(item)
 
-    def add_item_to_location(self, location_name: str, item_name: str) -> None:
+    def add_item_to_location(self, location: Location, item: Item) -> None:
         """Adds an item to a location.
 
         Parameters
         ----------
-        location_name: str
-            The name of the location to add an item to.
-        item_name: str
-            The name of the item to add.
+        location: Location
+            The location to add an item to.
+        item: Item
+            The item to add.
 
         Raises
         ------
         ValueError
-            Error raised if a supplied name is not present in this `Playbook`.
+            Error raised if item or location is not present in this `Playbook`.
         """
-        if not item_name in self.world.items:
-            raise ValueError(f"Unknown item {item_name}")
+        if not self.world.items.contains_item(item):
+            raise ValueError(f"Alien item {item}")
 
-        self.remove_item(item_name)
-        self.get_location_by_name(location_name).items.add(item_name)
+        if not location in self.world.locations:
+            raise ValueError(f"Alien location {location}")
 
-    def remove_item(self, item_name: str) -> None:
+        self.remove_item(item)
+        location.items.add_item(item)
+
+    def remove_item(self, item: Item) -> None:
         """Removes an item from all locations and the inventory.
 
         Parameters
         ----------
-        item_name: str
+        item: Item
             The name of the item to add.
 
         Raises
         ------
         ValueError
-            Error raised if supplied name is not an item in this `Playbook`.
+            Error raised if supplied item is not an item in this `Playbook`.
         """
-        if not item_name in self.world.items:
-            raise ValueError(f"Unknown item {item_name}")
+        if not self.world.items.contains_item(item):
+            raise ValueError(f"Alien item {item}")
 
-        if item_name in self.state.inventory:
-            self.state.inventory.remove(item_name)
+        self.state.inventory.remove_item(item, strict=False)
 
-        for location in self.world.locations.values():
-            if item_name in location.items:
-                location.items.remove(item_name)
+        for location in self.world.locations:
+            location.items.remove_item(item, strict=False)
 
-        all_items = self.world.items.values()
-        for container_item in [
-            i for i in all_items if (isinstance(i, LockableContainerItem))
-        ]:
-            if item_name in container_item.contents:
-                container_item.contents.remove(item_name)
+        for world_item in self.world.items.items:
+            if isinstance(world_item, LockableContainerItem):
+                world_item.remove_item(item)
 
 
-def from_file(playbook_file: str):
+def from_file(playbook_file: str) -> Playbook:
     """Creates a playbook based on data from a file.
 
     Parameters
@@ -214,7 +169,7 @@ def from_file(playbook_file: str):
     return from_data(json_data)
 
 
-def from_data(data: Any):
+def from_data(data: Any) -> Playbook:
     """Creates a playbook based on data compatible with the JSON playbook format.
 
     Parameters
@@ -234,8 +189,8 @@ def from_data(data: Any):
     """
     try:
         world = create_world(data.get("world"))
-        story = create_story(data.get("story"))
-        state = create_state(data.get("state"))
+        story = create_story(data.get("story"), world)
+        state = create_state(data.get("state"), world)
     except ValueError as e:
         raise GameDataError("Invalid playbook data.") from e
 

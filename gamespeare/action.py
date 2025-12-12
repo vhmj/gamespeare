@@ -3,6 +3,9 @@
 from abc import ABC
 from dataclasses import dataclass
 
+from gamespeare.item import Item
+from gamespeare.location import Location
+
 
 class ActionError(Exception):
     """Exception raised when an action is invalid.
@@ -27,7 +30,7 @@ class Action(ABC):
 class QuitAction(Action):
     """Action representing player's choice to quit."""
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "Quit"
 
 
@@ -35,7 +38,7 @@ class QuitAction(Action):
 class NoAction(Action):
     """Action representing inaction that won't count as a turn."""
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "No action"
 
 
@@ -45,16 +48,16 @@ class UseAction(Action):
 
     Attributes
     ----------
-    item: str
-        Name of the item to use.
-    target: str
-        Name of the use target item.
+    item: Item
+        The item to use.
+    target: Item
+        The target item.
     """
 
-    item: str
-    target: str
+    item: Item
+    target: Item
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Use {self.item} on {self.target}"
 
 
@@ -64,14 +67,14 @@ class TakeAction(Action):
 
     Attributes
     ----------
-    item: str
-        Name of the item to take.
+    item: Item
+        The item to take.
     """
 
-    item: str
+    item: Item
 
-    def __str__(self):
-        return f"Take {self.item}"
+    def __str__(self) -> str:
+        return f"Take {self.item.name}"
 
 
 @dataclass
@@ -80,11 +83,11 @@ class MoveAction(Action):
 
     Attributes
     ----------
-    destination: str
-        Name of the destination to move to.
+    destination: Location
+        The location to move to.
     """
 
-    destination: str
+    destination: Location
 
-    def __str__(self):
-        return f"Go {self.destination}"
+    def __str__(self) -> str:
+        return f"Go to {self.destination.name}"

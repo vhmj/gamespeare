@@ -12,18 +12,18 @@
         "description": "A small key"
       },
       {
+        "class": "ITEM",
+        "name": "GIFT",
+        "description": "A beautiful kamel\u00e5s\u00e5"
+      },
+      {
         "class": "CONTAINER",
         "name": "CHEST",
         "description": "A sturdy chest",
         "key": "KEY",
-        "contents": [
+        "items": [
           "GIFT"
         ]
-      },
-      {
-        "class": "ITEM",
-        "name": "GIFT",
-        "description": "A beautiful kamel\u00e5s\u00e5"
       },
       {
         "class": "ITEM",

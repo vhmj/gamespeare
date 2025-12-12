@@ -12,7 +12,7 @@ from gamespeare.action import (
     TakeAction,
     UseAction,
 )
-from gamespeare.item import LockableContainerItem
+from gamespeare.item import Item, LockableContainerItem, get_item_by_name
 from gamespeare.playbook import Playbook
 
 
@@ -77,7 +77,7 @@ class AdventureGame(ABC):
         """
 
     @abstractmethod
-    def epilogue(self):
+    def epilogue(self) -> None:
         """Concludes the game."""
 
     def execute_action(self, action: Action) -> Sequence[str]:
@@ -126,65 +126,59 @@ class AdventureGame(ABC):
 
     def _execute_use_action(self, action: UseAction) -> list[str]:
         if not action.item:
-            return ["There is no use."]
+            return ["There is no item to use."]
 
-        available_items = self.playbook.get_available_items()
-
-        if not action.item in available_items:
-            return [f"{action.item} not available."]
+        if not self.playbook.state.inventory.contains_item(action.item):
+            return [f"You don't have {action.item.name}."]
 
         if not action.target:
-            return [f"Use {action.item} on what?"]
+            return [f"Use {action.item.name} on what?"]
 
+        available_items = self.playbook.get_available_items()
         if not action.target in available_items:
-            return [f"{action.target} not available."]
+            return [f"Target {action.item.name} not available."]
 
-        target = available_items[action.target]
-        if isinstance(target, LockableContainerItem):
+        if isinstance(action.target, LockableContainerItem):
             return self._execute_use_on_lockable_container(
-                container=target, key=action.item
+                container=action.target, key=action.item
             )
 
         return [f"Can't use {action.item} on {action.target}."]
 
     def _execute_use_on_lockable_container(
-        self, container: LockableContainerItem, key: str
+        self, container: LockableContainerItem, key: Item
     ) -> list[str]:
         result = []
 
         if not container.key or container.key == key:
-            result.append(f"{key} unlocked {container.name}!")
-            for item_name in list(container.contents):
-                self.playbook.add_item_to_location(
-                    self.playbook.state.location, item_name
-                )
-                result.append(f"{item_name} discovered!")
+            result.append(f"{container.name} unlocked!")
+            print(container.items)
+            for item in list(container.items):
+                self.playbook.add_item_to_location(self.playbook.state.location, item)
+                result.append(f"{item.name} discovered!")
         else:
-            result.append(f"{key} didn't work on {container.name}.")
+            result.append(f"{key.name} didn't work on {container.name}.")
 
         return result
 
     def _execute_move_action(self, action: MoveAction) -> list[str]:
-        location = self.playbook.get_current_location()
-        new_location_name = location.destinations.get(action.destination)
-        if not new_location_name:
-            raise ActionError(
-                f"Missing destination {action.destination} for {location.name}."
-            )
-        self.playbook.state.location = new_location_name
+        for direction, destination in self.playbook.state.location.destinations.items():
+            if action.destination == destination:
+                self.playbook.state.location = action.destination
+                return [f"Moved {direction} to {destination}"]
 
-        return [f"Moved {action.destination} to {new_location_name}"]
+        raise ActionError(
+            f"Alien destination {action.destination.name} for {self.playbook.state.location.name}."
+        )
 
     def _execute_take_action(self, action: TakeAction) -> list[str]:
-        if action.item in self.playbook.state.inventory:
+        if self.playbook.state.inventory.contains_item(action.item):
             return [f"You already have {action.item}"]
 
-        location = self.playbook.get_current_location()
-        if not action.item in location.items:
+        if not self.playbook.state.location.items.contains_item(action.item):
             return [f"Can't take {action.item}, it's not here!"]
 
-        item = self.playbook.get_item_by_name(action.item)
-        if not item.takeable:
+        if not action.item.takeable:
             return [f"Can't take {action.item}!"]
 
         self.playbook.add_item_to_inventory(action.item)
@@ -243,7 +237,7 @@ class TextAdventureGame(AdventureGame):
                 except ActionError as e:
                     print(f"Error! {e}")
 
-    def _print_help(self):
+    def _print_help(self) -> None:
         help_text = f"""
 Valid Commands in the Turn of Our Lord {self.playbook.state.turn_no}:
 
@@ -260,8 +254,8 @@ QUIT
 """
         print(help_text)
 
-    def _print_location_description(self):
-        location = self.playbook.get_current_location()
+    def _print_location_description(self) -> None:
+        location = self.playbook.state.location
 
         print(f"Turn #{self.playbook.state.turn_no}: {location.name}")
         print()
@@ -270,11 +264,8 @@ QUIT
 
         if location.items:
             print("You can see the following items here:")
-            for item in [
-                self.playbook.get_item_by_name(item_name)
-                for item_name in location.items
-            ]:
-                print(f"{item.name}: {item.description}")
+            for item in location.items.items:
+                print(item)
             print()
 
         if location.destinations:
@@ -285,18 +276,17 @@ QUIT
 
         if self.playbook.state.inventory:
             print("You have the following items:")
-            for item_name in self.playbook.state.inventory:
-                item = self.playbook.get_item_by_name(item_name)
-                print(f"{item.name}: {item.description}")
+            for item in self.playbook.state.inventory.items:
+                print(item)
             print()
 
-    def _parse_go_action(self, param):
+    def _parse_go_action(self, param: str) -> MoveAction:
         destination = param.upper()
-        if not destination in self.playbook.get_current_location().destinations:
+        if not destination in self.playbook.state.location.destinations:
             raise ActionError(f"Invalid destination: {param}")
-        return MoveAction(destination)
+        return MoveAction(self.playbook.state.location.destinations[destination])
 
-    def _parse_use_action(self, param):
+    def _parse_use_action(self, param: str) -> UseAction:
         upper_param = param.upper()
 
         item = self._extract_item(upper_param)
@@ -307,24 +297,25 @@ QUIT
 
         return UseAction(item, target)
 
-    def _extract_item(self, param):
-        available_items = self.playbook.get_available_items()
-        for item in available_items.keys():
-            if param.startswith(item):
+    def _extract_item(self, param: str) -> Item | None:
+        for item in self.playbook.get_available_items():
+            if param.startswith(item.name):
                 return item
         return None
 
-    def _extract_target(self, param):
-        available_items = self.playbook.get_available_items()
-        for item in available_items.keys():
-            if param.endswith(item):
+    def _extract_target(self, param: str) -> Item | None:
+        for item in self.playbook.get_available_items():
+            if param.endswith(item.name):
                 return item
         return None
 
-    def _parse_take_action(self, param):
-        item = param.upper()
-        if not item in self.playbook.get_available_items():
+    def _parse_take_action(self, param: str) -> TakeAction:
+        item_name = param.upper()
+        if not self.playbook.state.location.items.contains_item(item_name):
             raise ActionError(f"Invalid item: {param}")
+        item = get_item_by_name(
+            items=self.playbook.state.location.items, name=item_name
+        )
         return TakeAction(item)
 
     def present_consequences(self, consequences: Sequence[str]) -> None:
@@ -338,6 +329,6 @@ QUIT
         for consequence in consequences:
             print(consequence)
 
-    def epilogue(self):
+    def epilogue(self) -> None:
         """Concludes the game."""
         print(self.playbook.story.epilogue)

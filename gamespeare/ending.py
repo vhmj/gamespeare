@@ -5,8 +5,11 @@ from dataclasses import dataclass, field
 from random import random
 from typing import Any
 
+from gamespeare.item import ItemContainer, get_item_by_name
+from gamespeare.location import Location, get_location_by_name
 from gamespeare.state import State
 from gamespeare.utils import get_float, get_int, get_string
+from gamespeare.world import World
 
 
 @dataclass
@@ -50,14 +53,14 @@ class GoalBasedEnding(Ending):
     reason: str
         The reason to give when the ending is triggered.
         Inherited from `Ending`.
-    location: str
-        The required location, or empty for no location required.
-    items: set of str
-        Names of the required items to possess.
+    location: Location or None
+        The required location, or `None` for no location required.
+    items: ItemContainer
+        Required items to possess.
     """
 
-    location: str = ""
-    items: set[str] = field(default_factory=set[str])
+    location: Location | None = None
+    items: ItemContainer = field(default_factory=ItemContainer)
 
     def evaluate(self, state: State) -> bool:
         """Evaluates the supplied state of the game to determine if it should end.
@@ -75,13 +78,14 @@ class GoalBasedEnding(Ending):
         if self.location and not self.location == state.location:
             return False
 
-        if not self.items.issubset(state.inventory):
-            return False
+        for item in self.items.items:
+            if not state.inventory.contains_item(item):
+                return False
 
         return True
 
 
-def create_goal_based_ending(data: Any) -> GoalBasedEnding:
+def create_goal_based_ending(data: Any, world: World) -> GoalBasedEnding:
     """Creates a random ending triggering with a specified probability.
 
     Parameters
@@ -90,10 +94,26 @@ def create_goal_based_ending(data: Any) -> GoalBasedEnding:
         dict-like object with key-value pair 'reason'/compatible with str.
         Optionally also key-value pair 'location'/compatible with str, and/or
         'items'/compatible with iterable of str.
+    world: World
+        The `World` to relate to.
+
+    Raises
+    ------
+    ValueError
+        Raised if `data` was invalid.
     """
     reason = get_string(data, "reason")
-    location = get_string(data, "location", empty_ok=True)
-    items = {str(item).strip() for item in data.get("items", [])}
+
+    location_name = get_string(data, "location", empty_ok=True)
+    if location_name:
+        location = get_location_by_name(world.locations, location_name)
+    else:
+        location = None
+
+    items = ItemContainer()
+    for entry in data.get("items", []):
+        item_name = str(entry).strip()
+        items.add_item(get_item_by_name(world.items.items, item_name))
 
     return GoalBasedEnding(reason=reason, location=location, items=items)
 
@@ -117,11 +137,11 @@ class TimeBasedEnding(Ending):
         The number of turns allowed before triggering the ending, larger than 1.
     """
 
-    def __init__(self, reason: str, turn_limit: int):
+    def __init__(self, reason: str, turn_limit: int) -> None:
         super().__init__(reason)
         self.turn_limit = turn_limit
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         attributes_repr = f"reason={self.reason}," f"turn_limit={self.turn_limit}"
         return f"{type(self).__name__}({attributes_repr})"
 
@@ -206,7 +226,7 @@ def create_random_ending(data: Any) -> RandomEnding:
     return RandomEnding(reason=reason, probability=probability)
 
 
-def create_endings(data: Any) -> list[Ending]:
+def create_endings(data: Any, world: World) -> list[Ending]:
     """Creates endings from a list of dict-like data.
 
     The key `class` is required, and the supported values are:
@@ -219,6 +239,8 @@ def create_endings(data: Any) -> list[Ending]:
     ----------
     data: Any
         A dict-like object with the key `class` and additional ending data.
+    world: World
+        The `World` to relate to.
 
     Returns
     -------
@@ -239,7 +261,7 @@ def create_endings(data: Any) -> list[Ending]:
         elif ending_class == "TURNS":
             endings.append(create_time_based_ending(entry))
         elif ending_class == "GOAL":
-            endings.append(create_goal_based_ending(entry))
+            endings.append(create_goal_based_ending(entry, world))
         else:
             raise ValueError(f"Unsupported Ending class: {ending_class}")
 

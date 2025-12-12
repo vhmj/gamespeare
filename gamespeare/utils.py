@@ -112,6 +112,11 @@ def get_string(data: Any, key: str, empty_ok: bool = False) -> str:
             return ""
         raise ValueError(f"Missing {key}")
 
+    if data[key] is None:
+        if empty_ok:
+            return ""
+        raise ValueError(f"{key} was None")
+
     string = str(data[key]).strip()
     if not string:
         if empty_ok:

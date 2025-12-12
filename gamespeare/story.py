@@ -13,7 +13,6 @@ from gamespeare.ending import (
 from gamespeare.state import State
 from gamespeare.utils import (
     GameDataError,
-    get_missing_entries,
     get_string,
     validate_string,
 )
@@ -35,8 +34,9 @@ def validate_goal_based_ending(ending: GoalBasedEnding, world: World) -> None:
     GameDataError
         Raised if the ending contain obvious errors.
     """
-    for missing_item_name in get_missing_entries(ending.items, world.items):
-        raise GameDataError(f'Ending item "{missing_item_name}" does not exist.')
+    for item in ending.items.items:
+        if not world.items.contains_item(item):
+            raise GameDataError(f"Alien ending item: {item.name}")
     if ending.location and ending.location not in world.locations:
         raise GameDataError(f'Ending location "{ending.location}" does not exist.')
 
@@ -155,7 +155,7 @@ class Story:
                 validate_random_ending(ending)
 
 
-def create_story(data: Any) -> Story:
+def create_story(data: Any, world: World) -> Story:
     """Creates a `Story` from dict-like data.
 
     Parameters
@@ -164,6 +164,8 @@ def create_story(data: Any) -> Story:
         A dict-like object with the keys `prologue` and `epilogue` with `str`
         values, and the key `endings` with a list of endings
         (see `Ending.create_endings()`)
+    world: World
+        The `World` to relate to.
 
     Returns
     -------
@@ -180,6 +182,6 @@ def create_story(data: Any) -> Story:
 
     prologue = get_string(data, "prologue")
     epilogue = get_string(data, "epilogue")
-    endings = create_endings(data.get("endings"))
+    endings = create_endings(data.get("endings"), world)
 
     return Story(prologue, epilogue, endings)
