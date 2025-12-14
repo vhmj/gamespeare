@@ -3,9 +3,8 @@
 from dataclasses import dataclass, field
 from typing import Any
 
-from gamespeare.item import Item, ItemContainer
+from gamespeare.item import ItemContainer
 from gamespeare.location import Location
-from gamespeare.utils import GameDataError
 from gamespeare.world import World
 
 
