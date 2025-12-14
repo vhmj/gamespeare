@@ -34,6 +34,9 @@ class GameObject(ABC):
     name: str
     description: str
 
+    def __str__(self) -> str:
+        return f"{self.name}: {self.description}"
+
     @abstractmethod
     def validate(self, valid_objects: Iterable[GameObject]):
         """Validates the integrity of the object in relation to valid objects.

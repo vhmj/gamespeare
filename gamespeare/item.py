@@ -25,9 +25,6 @@ class Item(GameObject):
     description: str
     takeable: bool
 
-    def __str__(self) -> str:
-        return f"{self.name}: {self.description}"
-
     def validate(self, valid_objects: Iterable[GameObject]):
         """Validates the integrity of the item in relation to valid game objects.
 
