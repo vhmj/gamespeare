@@ -1,6 +1,6 @@
 """Module for representing game objects."""
 
-from abc import ABC
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Iterable
 
@@ -20,6 +20,7 @@ class GameObject(ABC):
     name: str
     description: str
 
+    @abstractmethod
     def validate(self, valid_objects: Iterable[GameObject]):
         """Validates the integrity of the object in relation to valid objects.
 

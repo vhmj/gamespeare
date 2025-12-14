@@ -193,7 +193,7 @@ class TestGoalBasedEnding(unittest.TestCase):
             "location": "ABC",
             "items": ["A", "B", "C"],
         }
-        print(self.world)
+
         ending_full = create_goal_based_ending(ending_full_data, self.world)
         self.assertIsInstance(ending_full, GoalBasedEnding)
         self.assertEqual(ending_full.reason, "Full")

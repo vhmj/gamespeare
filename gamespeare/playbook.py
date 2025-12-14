@@ -2,8 +2,10 @@
 
 import json
 from json import JSONDecodeError
-from typing import Any
+from typing import Any, Iterable
 
+from gamespeare.ending import Ending, GoalBasedEnding, RandomEnding, TimeBasedEnding
+from gamespeare.gameobject import GameObject
 from gamespeare.item import (
     Item,
     ItemContainer,
@@ -11,7 +13,7 @@ from gamespeare.item import (
 from gamespeare.location import Location
 from gamespeare.state import State, create_state
 from gamespeare.story import Story, create_story
-from gamespeare.utils import GameDataError
+from gamespeare.utils import GameDataError, validate_keyword, validate_string
 from gamespeare.world import World, create_world
 
 
@@ -43,14 +45,115 @@ class Playbook:
     """
 
     def __init__(self, world: World, story: Story, state: State) -> None:
-        world.validate()
         self.world = world
-
-        story.validate(world)
         self.story = story
-
-        state.validate(world)
         self.state = state
+        self.validate()
+
+    def validate(self) -> None:
+        """Validates the integrity of a `Playbook`.
+
+        Raises
+        ------
+        GameDataError
+            Raised if the playbook contains obvious errors.
+        """
+        self._validate_world()
+        self._validate_story()
+        self._validate_state()
+
+    def _validate_world(self):
+        for game_object in self.world.contents:
+            self._validate_game_object(game_object)
+
+        n_entries = len(self.world.contents)
+        n_names = len(self.world.get_dict().keys())
+        if not n_entries == n_names:
+            raise GameDataError(f"{n_entries} and {n_names} mismatch")
+
+    def _validate_game_object(self, game_object: GameObject):
+        validate_keyword(game_object.name, "Name")
+        validate_string(game_object.description, "Description")
+
+        game_object.validate(self.world.contents)
+
+        if isinstance(game_object, ItemContainer):
+            self._validate_item_container(game_object)
+        if isinstance(game_object, Location):
+            self._validate_location(game_object)
+
+    def _validate_item_container(self, item_container: ItemContainer):
+        for item in item_container.get_item_list():
+            if not self.world.contains_item(item):
+                raise GameDataError(f"Alien item: {item}")
+
+    def _validate_location(self, location: Location):
+        for direction, destination in location.destinations.items():
+            validate_keyword(direction, "Direction")
+
+            if not self.world.contains_location(location):
+                raise GameDataError(f"Alien destination location: {location}")
+
+    def _validate_story(self) -> None:
+        validate_string(self.story.prologue, "Prologue")
+        validate_string(self.story.epilogue, "Epilogue")
+        self._validate_endings(self.story.endings)
+
+    def _validate_endings(self, endings: Iterable[Ending]) -> None:
+        if not endings:
+            raise GameDataError("No endings")
+
+        for ending in endings:
+            validate_string(ending.reason, "Ending")
+
+            if isinstance(ending, GoalBasedEnding):
+                self._validate_goal_based_ending(ending)
+            elif isinstance(ending, TimeBasedEnding):
+                self._validate_time_based_ending(ending)
+            elif isinstance(ending, RandomEnding):
+                self._validate_random_ending(ending)
+            else:
+                raise GameDataError(f"Unsupported ending: {ending}")
+
+    def _validate_goal_based_ending(self, ending: GoalBasedEnding) -> None:
+        if ending.location and not self.world.contains_location(ending.location):
+            raise GameDataError(f'Ending location "{ending.location}" does not exist.')
+
+        for item in ending.items.get_item_list():
+            if not self.world.contains_item(item):
+                raise GameDataError(f"Alien ending item: {item.name}")
+
+    def _validate_time_based_ending(self, ending: TimeBasedEnding) -> None:
+        if ending.turn_limit < 1:
+            raise GameDataError(f"Ending turn limit {ending.turn_limit} too low.")
+
+    def _validate_random_ending(self, ending: RandomEnding) -> None:
+        if ending.probability > 1.0 or ending.probability < 0.0:
+            message = f"Ending probability {ending.probability} not in [0.0, 1.1]."
+            raise GameDataError(message)
+
+    def _validate_state(self) -> None:
+        self._validate_round_no()
+        self._validate_current_location()
+        self._validate_inventory()
+
+    def _validate_round_no(self) -> None:
+        if self.state.turn_no < 1:
+            raise GameDataError(f"Invalid turn number: {self.state.turn_no}")
+
+    def _validate_current_location(self) -> None:
+        if not self.world.contains_location(self.state.location):
+            raise GameDataError(f"Invalid State Location: {self.state.location}")
+
+    def _validate_inventory(self) -> None:
+        for entry in self.state.inventory.contents:
+            if not isinstance(entry, Item):
+                message = f"Non-item in inventory: {entry}"
+                raise GameDataError(message)
+
+            if not self.world.contains_item(entry):
+                message = f"Alien inventory item: {entry.name}"
+                raise GameDataError(message)
 
     def get_available_items(self) -> list[Item]:
         """Returns currently available items.

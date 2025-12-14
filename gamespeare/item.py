@@ -265,8 +265,8 @@ def create_item(data: Any, takeable_default: bool = True) -> Item:
     """
     try:
         return Item(
-            name=str(data["name"]).strip(),
-            description=str(data["description"]).strip(),
+            name=data["name"],
+            description=data["description"],
             takeable=data.get("takeable", takeable_default),
         )
     except KeyError as e:
@@ -317,12 +317,11 @@ def create_lockable_container_item(
     )
 
     allowed_items = ItemContainer(list(items or []))
-
-    key_name = str(data.get("key", "")).strip()
+    key_name = data.get("key")
     if key_name:
         container_item.key = allowed_items.get_item(key_name)
 
-    for item_name in {str(item).strip() for item in data.get("items", [])}:
+    for item_name in data.get("items", []):
         item = allowed_items.get_item(item_name)
         container_item.add_item(item, strict=True)
 

@@ -8,7 +8,6 @@ from typing import Any
 from gamespeare.item import ItemContainer
 from gamespeare.location import Location
 from gamespeare.state import State
-from gamespeare.utils import get_float, get_int, get_string
 from gamespeare.world import World
 
 
@@ -102,17 +101,18 @@ def create_goal_based_ending(data: Any, world: World) -> GoalBasedEnding:
     ValueError
         Raised if `data` was invalid.
     """
-    reason = get_string(data, "reason")
+    reason = data.get("reason")
+    if not reason:
+        raise ValueError("Missing reason")
 
-    location_name = get_string(data, "location", empty_ok=True)
+    location_name = data.get("location")
     if location_name:
         location = world.get_location(location_name)
     else:
         location = None
 
     items = ItemContainer()
-    for entry in data.get("items", []):
-        item_name = str(entry).strip()
+    for item_name in data.get("items", []):
         items.add_item(world.get_item(item_name))
 
     return GoalBasedEnding(reason=reason, location=location, items=items)
@@ -169,9 +169,21 @@ def create_time_based_ending(data: Any) -> TimeBasedEnding:
     data: Any
         dict-like object with key-value pair 'turn_limit'/compatible with int
         (larger than 1), and 'reason'/compatible with str.
+
+    Raises
+    ------
+    ValueError
+        Raised if data is invalid.
     """
-    reason = get_string(data, "reason")
-    turn_limit = get_int(data, "turn_limit")
+    reason = data.get("reason")
+    if not reason:
+        raise ValueError("Missing reason")
+
+    try:
+        turn_limit = int(data["turn_limit"])
+    except (KeyError, TypeError) as e:
+        raise ValueError("Invalid time based ending") from e
+
     return TimeBasedEnding(reason=reason, turn_limit=turn_limit)
 
 
@@ -220,8 +232,16 @@ def create_random_ending(data: Any) -> RandomEnding:
     ValueError
         Raised if there is a problem with `data`.
     """
-    reason = get_string(data, "reason")
-    probability = get_float(data, "probability")
+    reason = data.get("reason")
+    if not reason:
+        raise ValueError("Missing reason")
+
+    try:
+        probability = float(data["probability"])
+    except KeyError as e:
+        raise ValueError("Missing probability") from e
+    except TypeError as e:
+        raise ValueError("Bad probability type") from e
 
     return RandomEnding(reason=reason, probability=probability)
 

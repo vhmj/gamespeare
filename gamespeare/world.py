@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from typing import Any
 
+from gamespeare.gameobject import GameObject
 from gamespeare.item import ItemContainer, create_items
 from gamespeare.location import LocationContainer, create_locations
 
@@ -17,17 +18,6 @@ class World(LocationContainer, ItemContainer):
         The contained game objects.
         Inherited from `GameObjectContainer`.
     """
-
-    def validate(self) -> None:
-        """Validates the integrity of a `World`.
-
-        Raises
-        ------
-        GameDataError
-            Raised if the world contains obvious errors.
-        """
-        for game_object in self.contents:
-            game_object.validate(self.contents)
 
 
 def create_world(data: Any) -> World:

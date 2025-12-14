@@ -36,72 +36,6 @@ class State:
         """
         self.turn_no = max(1, self.turn_no + delta)
 
-    def validate(self, world: World) -> None:
-        """Validates the integrity of a `State`.
-
-        Parameters
-        ----------
-        world: World
-            The `World` to relate to.
-
-        Raises
-        ------
-        GameDataError
-            Raised if the state contains obvious errors.
-        """
-        self._validate_round_no()
-        self._validate_location(world)
-        self._validate_inventory(world)
-
-    def _validate_round_no(self) -> None:
-        """Validates the integrity of the round number.
-
-        Raises
-        ------
-        GameDataError
-            Raised if the round number contain obvious errors.
-        """
-        if self.turn_no < 1:
-            raise GameDataError(f"Invalid turn number ({self.turn_no})!")
-
-    def _validate_location(self, world: World) -> None:
-        """Validates the integrity of the current location.
-
-        Parameters
-        ----------
-        world: World
-            The `World` to relate to.
-
-        Raises
-        ------
-        GameDataError
-            Raised if the current location contains obvious errors.
-        """
-        if not world.contains_location(self.location):
-            raise GameDataError(f'Invalid State Location "{self.location}"!')
-
-    def _validate_inventory(self, world: World) -> None:
-        """Validates the integrity of the inventory.
-
-        Parameters
-        ----------
-        world: World
-            The `World` to relate to.
-
-        Raises
-        ------
-        GameDataError
-            Raised if the inventory contains obvious errors.
-        """
-        for entry in self.inventory.contents:
-            if not isinstance(entry, Item):
-                message = f"Non-item in inventory: {entry}"
-                raise GameDataError(message)
-
-            if not world.contains_item(entry):
-                message = f"Alien inventory item: {entry.name}"
-                raise GameDataError(message)
-
 
 def create_state(data: Any, world: World) -> State:
     """Creates a `State` from dict-like data.
@@ -186,12 +120,7 @@ def _create_location(data: Any, world: World) -> Location:
     if not "location" in data:
         raise ValueError("Missing state location")
 
-    try:
-        location_name = str(data["location"]).strip()
-    except TypeError as e:
-        raise ValueError("Invalid state location type") from e
-
-    return world.get_location(location_name)
+    return world.get_location(data["location"])
 
 
 def _create_inventory(data: Any, world: World) -> ItemContainer:
@@ -217,9 +146,7 @@ def _create_inventory(data: Any, world: World) -> ItemContainer:
     inventory = ItemContainer()
 
     try:
-        for item_name in [
-            str(item_name).strip() for item_name in data.get("inventory", [])
-        ]:
+        for item_name in data.get("inventory", []):
             item = world.get_item(item_name)
             if not item:
                 raise ValueError(f"Alien inventory item: {item_name}")

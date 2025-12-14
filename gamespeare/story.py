@@ -13,70 +13,9 @@ from gamespeare.ending import (
 from gamespeare.state import State
 from gamespeare.utils import (
     GameDataError,
-    get_string,
     validate_string,
 )
 from gamespeare.world import World
-
-
-def validate_goal_based_ending(ending: GoalBasedEnding, world: World) -> None:
-    """Validates the integrity of a goal based ending.
-
-    Parameters
-    ----------
-    ending: GoalBasedEnding
-        The ending to validate for a given world.
-    world: World
-        The `World` to relate to.
-
-    Raises
-    ------
-    GameDataError
-        Raised if the ending contain obvious errors.
-    """
-    for item in ending.items.get_item_list():
-        if not world.contains_item(item):
-            raise GameDataError(f"Alien ending item: {item.name}")
-    if ending.location and not world.contains_location(ending.location):
-        print(ending.location)
-        print(world.get_location_list())
-        raise GameDataError(f'Ending location "{ending.location}" does not exist.')
-
-
-def validate_time_based_ending(ending: TimeBasedEnding) -> None:
-    """Validates the integrity of a goal based ending.
-
-    Parameters
-    ----------
-    ending: TimeBasedEnding
-        The ending to validate.
-
-    Raises
-    ------
-    GameDataError
-        Raised if the ending contain obvious errors.
-    """
-    if ending.turn_limit < 1:
-        raise GameDataError(f'Ending turn limit "{ending.turn_limit}" to low.')
-
-
-def validate_random_ending(ending: RandomEnding) -> None:
-    """Validates the integrity of a random ending.
-
-    Parameters
-    ----------
-    ending: RandomEnding
-        The ending to validate.
-
-    Raises
-    ------
-    GameDataError
-        Raised if the ending contain obvious errors.
-    """
-    if ending.probability > 1.0 or ending.probability < 0.0:
-        raise GameDataError(
-            f'Ending probability "{ending.probability}" not in [0.0, 1.1].'
-        )
 
 
 @dataclass
@@ -113,49 +52,6 @@ class Story:
                 return potential_ending
         return None
 
-    def validate(self, world: World) -> None:
-        """Validates the integrity of a `Story`.
-
-        Parameters
-        ----------
-        world: World
-            The `World` to relate to.
-
-        Raises
-        ------
-        GameDataError
-            Raised if the story contains obvious errors.
-        """
-        validate_string(self.prologue, "Prologue")
-        validate_string(self.epilogue, "Epilogue")
-        self._validate_endings(world)
-
-    def _validate_endings(self, world: World) -> None:
-        """Validates the integrity of the endings.
-
-        Parameters
-        ----------
-        world: World
-            The `World` to relate to.
-
-        Raises
-        ------
-        GameDataError
-            Raised if the endings contain obvious errors.
-        """
-        if not self.endings:
-            raise GameDataError("No endings!")
-
-        for ending in self.endings:
-            validate_string(ending.reason, "Ending")
-
-            if isinstance(ending, GoalBasedEnding):
-                validate_goal_based_ending(ending, world)
-            elif isinstance(ending, TimeBasedEnding):
-                validate_time_based_ending(ending)
-            elif isinstance(ending, RandomEnding):
-                validate_random_ending(ending)
-
 
 def create_story(data: Any, world: World) -> Story:
     """Creates a `Story` from dict-like data.
@@ -182,8 +78,11 @@ def create_story(data: Any, world: World) -> Story:
     if not data:
         raise ValueError("Missing story data")
 
-    prologue = get_string(data, "prologue")
-    epilogue = get_string(data, "epilogue")
-    endings = create_endings(data.get("endings"), world)
+    try:
+        prologue = data["prologue"]
+        epilogue = data["epilogue"]
+        endings = create_endings(data["endings"], world)
+    except KeyError as e:
+        raise ValueError("Missing key in data") from e
 
     return Story(prologue, epilogue, endings)

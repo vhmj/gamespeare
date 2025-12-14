@@ -29,6 +29,22 @@ class Location(ItemContainer, GameObject):
 
     destinations: dict[str, Location] = field(default_factory=dict)
 
+    def validate(self, valid_objects: Iterable[GameObject]):
+        """Validates the integrity of location in relation to valid objects.
+
+        Raises
+        ------
+        GameDataError
+            Raised if the location contains obvious errors.
+        """
+        for game_object in self.contents:
+            if not game_object in valid_objects:
+                raise ValueError(f"Alien game object: {game_object}")
+
+        for destination in self.destinations.values():
+            if not destination in valid_objects:
+                raise ValueError(f"Alien destination: {destination}")
+
 
 @dataclass
 class LocationContainer(GameObjectContainer):
@@ -227,7 +243,6 @@ def create_locations(
     list of Location
         A list of locations initialized from `data`.
 
-
     Raises
     ------
     ValueError
@@ -254,11 +269,7 @@ def create_locations(
     for location_name, location_destinations in unfilled_destinations.items():
         location = locations[location_name]
         try:
-            for raw_direction, raw_destination_name in location_destinations.items():
-
-                direction = str(raw_direction).strip()
-                destination_name = str(raw_destination_name).strip()
-
+            for direction, destination_name in location_destinations.items():
                 if destination_name not in locations:
                     raise ValueError(f"Unknown destination: {destination_name}")
 
