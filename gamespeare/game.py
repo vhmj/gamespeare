@@ -164,7 +164,7 @@ class AdventureGame(ABC):
         for direction, destination in self.playbook.state.location.destinations.items():
             if action.destination == destination:
                 self.playbook.state.location = action.destination
-                return [f"Moved {direction} to {destination}"]
+                return [f"Moved {direction} to {destination.name}"]
 
         raise ActionError(
             f"Alien destination {action.destination.name} for {self.playbook.state.location.name}."
