@@ -2,17 +2,32 @@
 
 import json
 from json import JSONDecodeError
-from typing import Any
+from typing import Any, Iterable
 
+from gamespeare.ending import Ending, GoalBasedEnding, RandomEnding, TimeBasedEnding
+from gamespeare.gameobject import GameObject, GameObjectError
 from gamespeare.item import (
     Item,
-    LockableContainerItem,
+    ItemContainer,
 )
 from gamespeare.location import Location
 from gamespeare.state import State, create_state
 from gamespeare.story import Story, create_story
-from gamespeare.utils import GameDataError
 from gamespeare.world import World, create_world
+
+
+class PlaybookError(Exception):
+    """Exception raised when playbook data is invalid.
+
+    Attributes
+    ----------
+        message: str
+            Explanation of the error.
+    """
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
 
 
 class Playbook:
@@ -43,147 +58,204 @@ class Playbook:
     """
 
     def __init__(self, world: World, story: Story, state: State) -> None:
-        world.validate()
         self.world = world
-
-        story.validate(world)
         self.story = story
-
-        state.validate(world)
         self.state = state
+        self.validate()
 
-    def get_item_by_name(self, name: str) -> Item:
-        """Returns the item with the name `name`.
-
-        Returns
-        -------
-        Item
-            The item with the name `name`.
+    def validate(self) -> None:
+        """Validates the integrity of a `Playbook`.
 
         Raises
         ------
-        ValueError
-            Error raised if supplied name is not an item in this `Playbook`.
+        GameDataError
+            Raised if the playbook contains obvious errors.
         """
-        if name in self.world.items:
-            return self.world.items[name]
-        raise ValueError(f"Unknown item: {name}")
+        self._validate_world()
+        self._validate_story()
+        self._validate_state()
 
-    def get_location_by_name(self, name: str) -> Location:
-        """Returns the location with the name `name`.
+    def _validate_world(self):
+        for game_object in self.world.contents:
+            self._validate_game_object(game_object)
 
-        Returns
-        -------
-        Location
-            The location with the name `name`.
+        n_entries = len(self.world.contents)
+        n_names = len(self.world.get_dict().keys())
+        if not n_entries == n_names:
+            raise PlaybookError(f"{n_entries} and {n_names} mismatch")
 
-        Raises
-        ------
-        ValueError
-            Error raised if supplied name is not a location in this `Playbook`.
-        """
-        if not name in self.world.locations:
-            raise ValueError(f"Unknown location: {name}")
-        return self.world.locations[name]
+    def _validate_game_object(self, game_object: GameObject):
+        validate_keyword(game_object.name, "Name")
+        validate_string(game_object.description, "Description")
 
-    def get_current_location(self) -> Location:
-        """Returns the current location.
+        try:
+            game_object.validate(self.world.contents)
+        except GameObjectError as e:
+            raise PlaybookError("Invalid game object") from e
 
-        Returns
-        -------
-        Location
-            The current location.
-        """
-        return self.world.locations[self.state.location]
+        if isinstance(game_object, ItemContainer):
+            self._validate_item_container(game_object)
+        if isinstance(game_object, Location):
+            self._validate_location(game_object)
 
-    def get_available_items(self) -> dict[str, Item]:
+    def _validate_item_container(self, item_container: ItemContainer):
+        for item in item_container.get_item_list():
+            if not self.world.contains_item(item):
+                raise PlaybookError(f"Alien item: {item}")
+
+    def _validate_location(self, location: Location):
+        for direction, destination in location.destinations.items():
+            validate_keyword(direction, "Direction")
+
+            if not self.world.contains_location(destination):
+                raise PlaybookError(f"Alien destination location: {destination}")
+
+    def _validate_story(self) -> None:
+        validate_string(self.story.prologue, "Prologue")
+        validate_string(self.story.epilogue, "Epilogue")
+        self._validate_endings(self.story.endings)
+
+    def _validate_endings(self, endings: Iterable[Ending]) -> None:
+        if not endings:
+            raise PlaybookError("No endings")
+
+        for ending in endings:
+            validate_string(ending.reason, "Ending")
+
+            if isinstance(ending, GoalBasedEnding):
+                self._validate_goal_based_ending(ending)
+            elif isinstance(ending, TimeBasedEnding):
+                self._validate_time_based_ending(ending)
+            elif isinstance(ending, RandomEnding):
+                self._validate_random_ending(ending)
+            else:
+                raise PlaybookError(f"Unsupported ending: {ending}")
+
+    def _validate_goal_based_ending(self, ending: GoalBasedEnding) -> None:
+        if ending.location and not self.world.contains_location(ending.location):
+            raise PlaybookError(f'Ending location "{ending.location}" does not exist.')
+
+        for item in ending.items.get_item_list():
+            if not self.world.contains_item(item):
+                raise PlaybookError(f"Alien ending item: {item.name}")
+
+    def _validate_time_based_ending(self, ending: TimeBasedEnding) -> None:
+        if ending.turn_limit < 1:
+            raise PlaybookError(f"Ending turn limit {ending.turn_limit} too low.")
+
+    def _validate_random_ending(self, ending: RandomEnding) -> None:
+        if ending.probability > 1.0 or ending.probability < 0.0:
+            message = f"Ending probability {ending.probability} not in [0.0, 1.1]."
+            raise PlaybookError(message)
+
+    def _validate_state(self) -> None:
+        self._validate_round_no()
+        self._validate_current_location()
+        self._validate_inventory()
+
+    def _validate_round_no(self) -> None:
+        if self.state.turn_no < 1:
+            raise PlaybookError(f"Invalid turn number: {self.state.turn_no}")
+
+    def _validate_current_location(self) -> None:
+        if not self.world.contains_location(self.state.location):
+            raise PlaybookError(f"Invalid State Location: {self.state.location}")
+
+    def _validate_inventory(self) -> None:
+        for entry in self.state.inventory.contents:
+            if not isinstance(entry, Item):
+                message = f"Non-item in inventory: {entry}"
+                raise PlaybookError(message)
+
+            if not self.world.contains_item(entry):
+                message = f"Alien inventory item: {entry.name}"
+                raise PlaybookError(message)
+
+    def get_available_items(self) -> list[Item]:
         """Returns currently available items.
 
         This is the combination of player inventory and location contents.
 
         Returns
         -------
-        dict of str:Item
-            Currently available items, with the name as key.
+        list of Item
+            Currently available items.
         """
-        item_names = (
-            self.state.inventory | self.get_location_by_name(self.state.location).items
-        )
-        return {item_name: self.get_item_by_name(item_name) for item_name in item_names}
+        available_items = ItemContainer()
+        for item in (
+            self.state.inventory.get_item_list() + self.state.location.get_item_list()
+        ):
+            available_items.add_item(item, strict=False)
+        return available_items.get_item_list()
 
-    def add_item_to_inventory(self, item_name: str) -> None:
+    def add_item_to_inventory(self, item: Item) -> None:
         """Adds an item to the player's inventory if it is takeable.
 
         Parameters
         ----------
-        item_name: str
-            The name of the item to add.
+        item: Item
+            The item to add.
 
         Raises
         ------
         ValueError
             Error raised if supplied name is not an item in this `Playbook`.
         """
-        if not item_name in self.world.items:
-            raise ValueError(f"Unknown item {item_name}")
+        if not self.world.contains_item(item):
+            raise ValueError(f"Alien item {item}")
 
-        if self.world.items[item_name].takeable:
-            self.remove_item(item_name)
-            self.state.inventory.add(item_name)
+        if item.takeable:
+            self.remove_item(item)
+            self.state.inventory.add_item(item)
 
-    def add_item_to_location(self, location_name: str, item_name: str) -> None:
+    def add_item_to_location(self, location: Location, item: Item) -> None:
         """Adds an item to a location.
 
         Parameters
         ----------
-        location_name: str
-            The name of the location to add an item to.
-        item_name: str
-            The name of the item to add.
+        location: Location
+            The location to add an item to.
+        item: Item
+            The item to add.
 
         Raises
         ------
         ValueError
-            Error raised if a supplied name is not present in this `Playbook`.
+            Error raised if item or location is not present in this `Playbook`.
         """
-        if not item_name in self.world.items:
-            raise ValueError(f"Unknown item {item_name}")
+        if not self.world.contains_item(item):
+            raise ValueError(f"Alien item {item}")
 
-        self.remove_item(item_name)
-        self.get_location_by_name(location_name).items.add(item_name)
+        if not self.world.contains_location(location):
+            raise ValueError(f"Alien location {location}")
 
-    def remove_item(self, item_name: str) -> None:
+        self.remove_item(item)
+        location.add_item(item)
+
+    def remove_item(self, item: Item) -> None:
         """Removes an item from all locations and the inventory.
 
         Parameters
         ----------
-        item_name: str
+        item: Item
             The name of the item to add.
 
         Raises
         ------
         ValueError
-            Error raised if supplied name is not an item in this `Playbook`.
+            Error raised if supplied item is not an item in this `Playbook`.
         """
-        if not item_name in self.world.items:
-            raise ValueError(f"Unknown item {item_name}")
+        if not self.world.contains_item(item):
+            raise ValueError(f"Alien item {item}")
 
-        if item_name in self.state.inventory:
-            self.state.inventory.remove(item_name)
+        self.state.inventory.remove_item(item, strict=False)
 
-        for location in self.world.locations.values():
-            if item_name in location.items:
-                location.items.remove(item_name)
-
-        all_items = self.world.items.values()
-        for container_item in [
-            i for i in all_items if (isinstance(i, LockableContainerItem))
-        ]:
-            if item_name in container_item.contents:
-                container_item.contents.remove(item_name)
+        for game_object in self.world.contents:
+            if isinstance(game_object, ItemContainer):
+                game_object.remove_item(item, strict=False)
 
 
-def from_file(playbook_file: str):
+def from_file(playbook_file: str) -> Playbook:
     """Creates a playbook based on data from a file.
 
     Parameters
@@ -205,16 +277,16 @@ def from_file(playbook_file: str):
         with open(playbook_file, mode="r", encoding="utf-8") as input_file:
             json_data = json.load(input_file)
     except JSONDecodeError as e:
-        raise GameDataError("Invalid playbook format.") from e
+        raise PlaybookError("Invalid playbook format.") from e
     except FileNotFoundError as e:
-        raise GameDataError("Playbook file not found.") from e
+        raise PlaybookError("Playbook file not found.") from e
     except OSError as e:
-        raise GameDataError("Unable to playbook file.") from e
+        raise PlaybookError("Unable to playbook file.") from e
 
     return from_data(json_data)
 
 
-def from_data(data: Any):
+def from_data(data: Any) -> Playbook:
     """Creates a playbook based on data compatible with the JSON playbook format.
 
     Parameters
@@ -234,9 +306,57 @@ def from_data(data: Any):
     """
     try:
         world = create_world(data.get("world"))
-        story = create_story(data.get("story"))
-        state = create_state(data.get("state"))
+        story = create_story(data.get("story"), world)
+        state = create_state(data.get("state"), world)
     except ValueError as e:
-        raise GameDataError("Invalid playbook data.") from e
+        raise PlaybookError("Invalid playbook data.") from e
 
     return Playbook(world, story, state)
+
+
+def validate_keyword(keyword: str, title: str) -> None:
+    """Validates a keyword to make sure it is suitable for game data.
+
+    The keyword must not contain leading or trailing whitespace and must be all
+    uppercase.
+
+    Parameters
+    ----------
+    keyword: str
+        The keyword.
+    title: str
+        Title to include in raised error.
+
+    Raises
+    ------
+    GameDataError
+        Raised if the keyword is invalid.
+    """
+    validate_string(keyword, title)
+    if not keyword.isupper():
+        raise PlaybookError(f'Non-uppercase {title} "{keyword}".')
+
+
+def validate_string(string: str, title: str) -> None:
+    """Validates a string to make sure it is suitable for game data.
+
+    The string must not contain leading or trailing whitespace and must not be
+    empty.
+
+    Parameters
+    ----------
+    string: str
+        The string.
+    title: str
+        Title to include in raised error.
+
+    Raises
+    ------
+    GameDataError
+        Raised if the keyword is invalid.
+    """
+    stripped = string.strip()
+    if not stripped:
+        raise PlaybookError(f'Empty {title} "{string}".')
+    if not stripped == string:
+        raise PlaybookError(f'Extra whitespace in {title} "{string}".')

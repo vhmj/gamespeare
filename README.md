@@ -144,6 +144,7 @@ The game data file format is a JSON file, simplified below. See the file
 #### Item
 There are currently two types of items, regular items (`ITEM`) and containers
 (`CONTAINER`). Each item must have a unique uppercase name. Items are optional.
+Items must be defined before they can be used in a container.
 
 ```
 {

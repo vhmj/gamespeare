@@ -15,7 +15,7 @@
         "class": "ITEM",
         "name": "ELEPHANT",
         "description": "A pink elephant",
-        "takeable": "False"
+        "takeable": false
       },
       {
         "class": "ITEM",
@@ -27,7 +27,7 @@
         "name": "CHEST",
         "description": "A sturdy chest",
         "key": "KEY",
-        "contents": [
+        "items": [
           "SKULL"
         ]
       }
