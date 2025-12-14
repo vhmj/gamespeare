@@ -5,7 +5,7 @@ from json import JSONDecodeError
 from typing import Any, Iterable
 
 from gamespeare.ending import Ending, GoalBasedEnding, RandomEnding, TimeBasedEnding
-from gamespeare.gameobject import GameObject
+from gamespeare.gameobject import GameObject, GameObjectError
 from gamespeare.item import (
     Item,
     ItemContainer,
@@ -13,8 +13,21 @@ from gamespeare.item import (
 from gamespeare.location import Location
 from gamespeare.state import State, create_state
 from gamespeare.story import Story, create_story
-from gamespeare.utils import GameDataError, validate_keyword, validate_string
 from gamespeare.world import World, create_world
+
+
+class PlaybookError(Exception):
+    """Exception raised when playbook data is invalid.
+
+    Attributes
+    ----------
+        message: str
+            Explanation of the error.
+    """
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
 
 
 class Playbook:
@@ -69,13 +82,16 @@ class Playbook:
         n_entries = len(self.world.contents)
         n_names = len(self.world.get_dict().keys())
         if not n_entries == n_names:
-            raise GameDataError(f"{n_entries} and {n_names} mismatch")
+            raise PlaybookError(f"{n_entries} and {n_names} mismatch")
 
     def _validate_game_object(self, game_object: GameObject):
         validate_keyword(game_object.name, "Name")
         validate_string(game_object.description, "Description")
 
-        game_object.validate(self.world.contents)
+        try:
+            game_object.validate(self.world.contents)
+        except GameObjectError as e:
+            raise PlaybookError("Invalid game object") from e
 
         if isinstance(game_object, ItemContainer):
             self._validate_item_container(game_object)
@@ -85,14 +101,14 @@ class Playbook:
     def _validate_item_container(self, item_container: ItemContainer):
         for item in item_container.get_item_list():
             if not self.world.contains_item(item):
-                raise GameDataError(f"Alien item: {item}")
+                raise PlaybookError(f"Alien item: {item}")
 
     def _validate_location(self, location: Location):
         for direction, destination in location.destinations.items():
             validate_keyword(direction, "Direction")
 
-            if not self.world.contains_location(location):
-                raise GameDataError(f"Alien destination location: {location}")
+            if not self.world.contains_location(destination):
+                raise PlaybookError(f"Alien destination location: {destination}")
 
     def _validate_story(self) -> None:
         validate_string(self.story.prologue, "Prologue")
@@ -101,7 +117,7 @@ class Playbook:
 
     def _validate_endings(self, endings: Iterable[Ending]) -> None:
         if not endings:
-            raise GameDataError("No endings")
+            raise PlaybookError("No endings")
 
         for ending in endings:
             validate_string(ending.reason, "Ending")
@@ -113,24 +129,24 @@ class Playbook:
             elif isinstance(ending, RandomEnding):
                 self._validate_random_ending(ending)
             else:
-                raise GameDataError(f"Unsupported ending: {ending}")
+                raise PlaybookError(f"Unsupported ending: {ending}")
 
     def _validate_goal_based_ending(self, ending: GoalBasedEnding) -> None:
         if ending.location and not self.world.contains_location(ending.location):
-            raise GameDataError(f'Ending location "{ending.location}" does not exist.')
+            raise PlaybookError(f'Ending location "{ending.location}" does not exist.')
 
         for item in ending.items.get_item_list():
             if not self.world.contains_item(item):
-                raise GameDataError(f"Alien ending item: {item.name}")
+                raise PlaybookError(f"Alien ending item: {item.name}")
 
     def _validate_time_based_ending(self, ending: TimeBasedEnding) -> None:
         if ending.turn_limit < 1:
-            raise GameDataError(f"Ending turn limit {ending.turn_limit} too low.")
+            raise PlaybookError(f"Ending turn limit {ending.turn_limit} too low.")
 
     def _validate_random_ending(self, ending: RandomEnding) -> None:
         if ending.probability > 1.0 or ending.probability < 0.0:
             message = f"Ending probability {ending.probability} not in [0.0, 1.1]."
-            raise GameDataError(message)
+            raise PlaybookError(message)
 
     def _validate_state(self) -> None:
         self._validate_round_no()
@@ -139,21 +155,21 @@ class Playbook:
 
     def _validate_round_no(self) -> None:
         if self.state.turn_no < 1:
-            raise GameDataError(f"Invalid turn number: {self.state.turn_no}")
+            raise PlaybookError(f"Invalid turn number: {self.state.turn_no}")
 
     def _validate_current_location(self) -> None:
         if not self.world.contains_location(self.state.location):
-            raise GameDataError(f"Invalid State Location: {self.state.location}")
+            raise PlaybookError(f"Invalid State Location: {self.state.location}")
 
     def _validate_inventory(self) -> None:
         for entry in self.state.inventory.contents:
             if not isinstance(entry, Item):
                 message = f"Non-item in inventory: {entry}"
-                raise GameDataError(message)
+                raise PlaybookError(message)
 
             if not self.world.contains_item(entry):
                 message = f"Alien inventory item: {entry.name}"
-                raise GameDataError(message)
+                raise PlaybookError(message)
 
     def get_available_items(self) -> list[Item]:
         """Returns currently available items.
@@ -261,11 +277,11 @@ def from_file(playbook_file: str) -> Playbook:
         with open(playbook_file, mode="r", encoding="utf-8") as input_file:
             json_data = json.load(input_file)
     except JSONDecodeError as e:
-        raise GameDataError("Invalid playbook format.") from e
+        raise PlaybookError("Invalid playbook format.") from e
     except FileNotFoundError as e:
-        raise GameDataError("Playbook file not found.") from e
+        raise PlaybookError("Playbook file not found.") from e
     except OSError as e:
-        raise GameDataError("Unable to playbook file.") from e
+        raise PlaybookError("Unable to playbook file.") from e
 
     return from_data(json_data)
 
@@ -293,6 +309,54 @@ def from_data(data: Any) -> Playbook:
         story = create_story(data.get("story"), world)
         state = create_state(data.get("state"), world)
     except ValueError as e:
-        raise GameDataError("Invalid playbook data.") from e
+        raise PlaybookError("Invalid playbook data.") from e
 
     return Playbook(world, story, state)
+
+
+def validate_keyword(keyword: str, title: str) -> None:
+    """Validates a keyword to make sure it is suitable for game data.
+
+    The keyword must not contain leading or trailing whitespace and must be all
+    uppercase.
+
+    Parameters
+    ----------
+    keyword: str
+        The keyword.
+    title: str
+        Title to include in raised error.
+
+    Raises
+    ------
+    GameDataError
+        Raised if the keyword is invalid.
+    """
+    validate_string(keyword, title)
+    if not keyword.isupper():
+        raise PlaybookError(f'Non-uppercase {title} "{keyword}".')
+
+
+def validate_string(string: str, title: str) -> None:
+    """Validates a string to make sure it is suitable for game data.
+
+    The string must not contain leading or trailing whitespace and must not be
+    empty.
+
+    Parameters
+    ----------
+    string: str
+        The string.
+    title: str
+        Title to include in raised error.
+
+    Raises
+    ------
+    GameDataError
+        Raised if the keyword is invalid.
+    """
+    stripped = string.strip()
+    if not stripped:
+        raise PlaybookError(f'Empty {title} "{string}".')
+    if not stripped == string:
+        raise PlaybookError(f'Extra whitespace in {title} "{string}".')

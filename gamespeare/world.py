@@ -3,7 +3,6 @@
 from dataclasses import dataclass
 from typing import Any
 
-from gamespeare.gameobject import GameObject
 from gamespeare.item import ItemContainer, create_items
 from gamespeare.location import LocationContainer, create_locations
 

@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
-from gamespeare.gameobject import GameObject, GameObjectContainer
+from gamespeare.gameobject import GameObject, GameObjectContainer, GameObjectError
 from gamespeare.item import Item, ItemContainer
 
 
@@ -34,16 +34,16 @@ class Location(ItemContainer, GameObject):
 
         Raises
         ------
-        GameDataError
+        GameObjectError
             Raised if the location contains obvious errors.
         """
         for game_object in self.contents:
             if not game_object in valid_objects:
-                raise ValueError(f"Alien game object: {game_object}")
+                raise GameObjectError(f"Alien game object: {game_object}")
 
         for destination in self.destinations.values():
             if not destination in valid_objects:
-                raise ValueError(f"Alien destination: {destination}")
+                raise GameObjectError(f"Alien destination: {destination}")
 
 
 @dataclass

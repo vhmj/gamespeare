@@ -3,8 +3,7 @@
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
-from gamespeare.gameobject import GameObject, GameObjectContainer
-from gamespeare.utils import GameDataError
+from gamespeare.gameobject import GameObject, GameObjectContainer, GameObjectError
 
 
 @dataclass
@@ -38,7 +37,7 @@ class Item(GameObject):
             Raised if the item contains obvious errors.
         """
         if not self in valid_objects:
-            raise GameDataError(f"Illegal item: {self}")
+            raise GameObjectError(f"Illegal item: {self}")
 
 
 @dataclass
@@ -178,15 +177,15 @@ class LockableContainerItem(ItemContainer, Item):
 
         Raises
         ------
-        GameDataError
+        GameObjectError
             Raised if the lockable item container contains obvious errors.
         """
         if not self in valid_objects:
-            raise GameDataError(f"Illegal lockable item container: {self}")
+            raise GameObjectError(f"Illegal lockable item container: {self}")
 
         for item in self.get_item_list():
             if not item in valid_objects:
-                raise GameDataError(f"Illegal contained item: {self}")
+                raise GameObjectError(f"Illegal contained item: {self}")
 
 
 def create_items(data: Any) -> list[Item]:

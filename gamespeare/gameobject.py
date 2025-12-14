@@ -5,6 +5,20 @@ from dataclasses import dataclass, field
 from typing import Iterable
 
 
+class GameObjectError(Exception):
+    """Exception raised when game object is invalid.
+
+    Attributes
+    ----------
+        message: str
+            Explanation of the error.
+    """
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
+
+
 @dataclass
 class GameObject(ABC):
     """An object in the game.

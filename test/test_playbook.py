@@ -4,8 +4,7 @@ import unittest
 
 from gamespeare.item import Item, LockableContainerItem
 from gamespeare.location import Location
-from gamespeare.playbook import Playbook, from_file
-from gamespeare.utils import GameDataError
+from gamespeare.playbook import Playbook, PlaybookError, from_file
 
 
 class TestPlaybook(unittest.TestCase):
@@ -130,22 +129,22 @@ class TestPlaybook(unittest.TestCase):
 
     def test_from_file_invalid(self) -> None:
         """Tests from_file() with invalid playbook file"""
-        with self.assertRaises(GameDataError):
+        with self.assertRaises(PlaybookError):
             from_file("../testdata/nonexisting")
 
-        with self.assertRaises(GameDataError):
+        with self.assertRaises(PlaybookError):
             from_file("../testdata/not.json")
 
-        with self.assertRaises(GameDataError):
+        with self.assertRaises(PlaybookError):
             from_file("../testdata/empty.json")
 
-        with self.assertRaises(GameDataError):
+        with self.assertRaises(PlaybookError):
             from_file("../testdata/no_world.json")
 
-        with self.assertRaises(GameDataError):
+        with self.assertRaises(PlaybookError):
             from_file("../testdata/no_story.json")
 
-        with self.assertRaises(GameDataError):
+        with self.assertRaises(PlaybookError):
             from_file("../testdata/no_state.json")
 
 
