@@ -157,7 +157,7 @@ class LocationContainer(GameObjectContainer):
 def create_location(
     data: Any,
     locations: Iterable[Location] | None = None,
-    items: ItemContainer | Iterable[Item] | None = None,
+    items: Iterable[Item] | None = None,
 ) -> Location:
     """Creates a `Location` from a dict-like object.
 
@@ -221,9 +221,7 @@ def create_location(
     )
 
 
-def create_locations(
-    data: Any, items: ItemContainer | Iterable[Item] | None
-) -> list[Location]:
+def create_locations(data: Any, items: Iterable[Item] | None) -> list[Location]:
     """Creates locations from an iterable of dict-like data.
 
     The key `class` is required, and the supported values are:
@@ -235,7 +233,7 @@ def create_locations(
     data: Any
         An iterable of dict-like objects with the key `class` and additional
         item data.
-    items: ItemContainer or iterable of Item or None
+    items: Iterable of Item or None
         Valid items.
 
     Returns
