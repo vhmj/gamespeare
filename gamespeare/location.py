@@ -3,30 +3,139 @@
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
+from gamespeare.gameobject import GameObject, GameObjectContainer
 from gamespeare.item import Item, ItemContainer
 
 
 @dataclass
-class Location:
+class Location(ItemContainer, GameObject):
     """Class representing a location in a game.
 
     Attributes
     ----------
     name: str
         Unique name of the location.
+        Inherited from `GameObject`
     description: str
         Description of the location.
+        Inherited from `GameObject`
+    contents: list of GameObject
+        The contained game objects.
+        Inherited from `GameObjectContainer`.
     destinations: dict of str: Location
         Possible destinations to go from this location, with the key being the direction and the
         value the destination location.
-    items: ItemContainer
-        Items present in the location.
     """
 
-    name: str
-    description: str
     destinations: dict[str, Location] = field(default_factory=dict)
-    items: ItemContainer = field(default_factory=ItemContainer)
+
+
+@dataclass
+class LocationContainer(GameObjectContainer):
+    """Class representing something that contains locations.
+
+    Attributes
+    ----------
+    contents: list of GameObject
+        The contained game objects.
+        Inherited from `GameObjectContainer`.
+    """
+
+    def contains_location(self, location: str | Location) -> bool:
+        """Checks if a location is part of the container's contents.
+
+        Parameters
+        ----------
+        location: str or Location
+            The location to check if it is part of the contents, either
+            `Location` or its name.
+
+        Returns
+        -------
+        bool
+            `True` if the location is part of the contents, `False` otherwise.
+        """
+        try:
+            return isinstance(self.get(location), Location)
+        except ValueError:
+            return False
+
+    def add_location(self, location: Location, strict: bool = False) -> None:
+        """Adds a location to the container.
+
+        Parameters
+        ----------
+        location: Location
+            The location to add.
+        strict: bool
+            Error will be raised for already present location if set to `True`.
+
+        Raises
+        ------
+        ValueError
+            Raised if `strict` and the location is already present.
+        """
+        self.add(location, strict)
+
+    def remove_location(self, location: str | Location, strict: bool = False) -> None:
+        """Removes a location from the container.
+
+        Parameters
+        ----------
+        location: Location or str
+            The location to remove, eiter `Location` or its name.
+        strict: bool
+            Error will be raised for not present locations if set to `True`.
+
+        Raises
+        ------
+        ValueError
+            Raised if `strict` and the location is not present.
+        """
+        self.remove(location, strict)
+
+    def get_location(self, location: str | Location) -> Location:
+        """Gets an item from the container.
+
+        Parameters
+        ----------
+        location: Location or str
+            The location to get, eiter `Location` or its name.
+
+        Returns
+        -------
+        Location
+            The requested location.
+
+        Raises
+        ------
+        ValueError
+            Raised if the specified location is not present.
+        """
+        candidate = self.get(location)
+        if isinstance(candidate, Location):
+            return candidate
+        raise ValueError(f"Missing location: {location}")
+
+    def get_location_list(self) -> list[Location]:
+        """Gets a list of contained locations.
+
+        Returns
+        -------
+        list of GameObject
+            New list of locations.
+        """
+        return [loc for loc in self.get_list() if isinstance(loc, Location)]
+
+    def get_location_dict(self) -> dict[str, Location]:
+        """Gets a dictionary of contained locations.
+
+        Returns
+        -------
+        dict of str, Location
+            New dict of locations with the names as keys and locations as values.
+        """
+        return {loc.name: loc for loc in self.get_location_list()}
 
 
 def create_location(
@@ -69,7 +178,7 @@ def create_location(
     if not items:
         valid_items = []
     elif isinstance(items, ItemContainer):
-        valid_items = items.items
+        valid_items = items.get_item_list()
     else:
         valid_items = list(items)
     item_dict = {item.name: item for item in valid_items}
@@ -79,7 +188,9 @@ def create_location(
     try:
         name = str(data["name"]).strip()
         description = str(data["description"]).strip()
-        contents = [item_dict[str(item).strip()] for item in data.get("items", [])]
+        contents: list[GameObject] = [
+            item_dict[str(item).strip()] for item in data.get("items", [])
+        ]
         destinations = {
             str(k).strip(): location_dict[str(v).strip()]
             for (k, v) in data.get("destinations", {}).items()
@@ -89,7 +200,9 @@ def create_location(
     except TypeError as e:
         raise ValueError("Invalid type") from e
 
-    return Location(name, description, destinations, ItemContainer(contents))
+    return Location(
+        name=name, description=description, contents=contents, destinations=destinations
+    )
 
 
 def create_locations(
@@ -154,30 +267,3 @@ def create_locations(
             raise ValueError("Invalid destination entry") from e
 
     return list(locations.values())
-
-
-def get_location_by_name(locations: Iterable[Location] | None, name: str) -> Location:
-    """Gets the item with a specific name.
-
-    Parameters
-    ----------
-    locations: Iterable of Location
-        Locations to search
-    name: str
-        Name of the location to get.
-
-    Returns
-    -------
-    Location
-        The first location encountered named `name`.
-
-    Raises
-    ------
-    ValueError
-        Raised if no locations named `name` were present.
-    """
-    for location in locations or []:
-        if location.name == name:
-            return location
-
-    raise ValueError(f"Location does not exist: {name}")

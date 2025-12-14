@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from typing import Any
 
-from gamespeare.item import ItemContainer, get_item_by_name
+from gamespeare.item import Item, ItemContainer
 from gamespeare.location import Location
 from gamespeare.utils import GameDataError
 from gamespeare.world import World
@@ -77,7 +77,7 @@ class State:
         GameDataError
             Raised if the current location contains obvious errors.
         """
-        if not self.location in world.locations:
+        if not world.contains_location(self.location):
             raise GameDataError(f'Invalid State Location "{self.location}"!')
 
     def _validate_inventory(self, world: World) -> None:
@@ -93,11 +93,14 @@ class State:
         GameDataError
             Raised if the inventory contains obvious errors.
         """
-        for item in self.inventory.items:
-            if not world.items.contains_item(item):
-                raise GameDataError(
-                    f'State Inventory Item "{item.name}" does not exist.'
-                )
+        for entry in self.inventory.contents:
+            if not isinstance(entry, Item):
+                message = f"Non-item in inventory: {entry}"
+                raise GameDataError(message)
+
+            if not world.contains_item(entry):
+                message = f"Alien inventory item: {entry.name}"
+                raise GameDataError(message)
 
 
 def create_state(data: Any, world: World) -> State:
@@ -188,11 +191,7 @@ def _create_location(data: Any, world: World) -> Location:
     except TypeError as e:
         raise ValueError("Invalid state location type") from e
 
-    for location in world.locations:
-        if location.name == location_name:
-            return location
-
-    raise ValueError(f"Alien state location: {location_name}")
+    return world.get_location(location_name)
 
 
 def _create_inventory(data: Any, world: World) -> ItemContainer:
@@ -221,7 +220,7 @@ def _create_inventory(data: Any, world: World) -> ItemContainer:
         for item_name in [
             str(item_name).strip() for item_name in data.get("inventory", [])
         ]:
-            item = get_item_by_name(name=item_name, items=world.items)
+            item = world.get_item(item_name)
             if not item:
                 raise ValueError(f"Alien inventory item: {item_name}")
             inventory.add_item(item)

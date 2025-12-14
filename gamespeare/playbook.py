@@ -7,7 +7,6 @@ from typing import Any
 from gamespeare.item import (
     Item,
     ItemContainer,
-    LockableContainerItem,
 )
 from gamespeare.location import Location
 from gamespeare.state import State, create_state
@@ -64,9 +63,11 @@ class Playbook:
             Currently available items.
         """
         available_items = ItemContainer()
-        for item in self.state.inventory.items + self.state.location.items.items:
+        for item in (
+            self.state.inventory.get_item_list() + self.state.location.get_item_list()
+        ):
             available_items.add_item(item, strict=False)
-        return available_items.items
+        return available_items.get_item_list()
 
     def add_item_to_inventory(self, item: Item) -> None:
         """Adds an item to the player's inventory if it is takeable.
@@ -81,7 +82,7 @@ class Playbook:
         ValueError
             Error raised if supplied name is not an item in this `Playbook`.
         """
-        if not self.world.items.contains_item(item):
+        if not self.world.contains_item(item):
             raise ValueError(f"Alien item {item}")
 
         if item.takeable:
@@ -103,14 +104,14 @@ class Playbook:
         ValueError
             Error raised if item or location is not present in this `Playbook`.
         """
-        if not self.world.items.contains_item(item):
+        if not self.world.contains_item(item):
             raise ValueError(f"Alien item {item}")
 
-        if not location in self.world.locations:
+        if not self.world.contains_location(location):
             raise ValueError(f"Alien location {location}")
 
         self.remove_item(item)
-        location.items.add_item(item)
+        location.add_item(item)
 
     def remove_item(self, item: Item) -> None:
         """Removes an item from all locations and the inventory.
@@ -125,17 +126,14 @@ class Playbook:
         ValueError
             Error raised if supplied item is not an item in this `Playbook`.
         """
-        if not self.world.items.contains_item(item):
+        if not self.world.contains_item(item):
             raise ValueError(f"Alien item {item}")
 
         self.state.inventory.remove_item(item, strict=False)
 
-        for location in self.world.locations:
-            location.items.remove_item(item, strict=False)
-
-        for world_item in self.world.items.items:
-            if isinstance(world_item, LockableContainerItem):
-                world_item.remove_item(item)
+        for game_object in self.world.contents:
+            if isinstance(game_object, ItemContainer):
+                game_object.remove_item(item, strict=False)
 
 
 def from_file(playbook_file: str) -> Playbook:

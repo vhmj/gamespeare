@@ -3,40 +3,54 @@
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
+from gamespeare.gameobject import GameObject, GameObjectContainer
+from gamespeare.utils import GameDataError
+
 
 @dataclass
-class Item:
+class Item(GameObject):
     """Class representing an item.
 
     Attributes
     ----------
     name: str
         Unique name of the item.
+        Inherited from `GameObject`
     description: str
         Description of the item.
+        Inherited from `GameObject`
     takeable: bool
         `True` if the item can be taken, `False` otherwise.
     """
 
-    name: str
     description: str
     takeable: bool
 
     def __str__(self) -> str:
         return f"{self.name}: {self.description}"
 
+    def validate(self, valid_objects: Iterable[GameObject]):
+        """Validates the integrity of the item in relation to valid game objects.
+
+        Raises
+        ------
+        GameDataError
+            Raised if the item contains obvious errors.
+        """
+        if not self in valid_objects:
+            raise GameDataError(f"Illegal item: {self}")
+
 
 @dataclass
-class ItemContainer:
+class ItemContainer(GameObjectContainer):
     """Class representing something that contains items.
 
     Attributes
     ----------
-    items: list of Item
-        The contained items.
+    contents: list of GameObject
+        The contained game objects.
+        Inherited from `GameObjectContainer`.
     """
-
-    items: list[Item] = field(default_factory=list[Item])
 
     def contains_item(self, item: str | Item) -> bool:
         """Checks if an item is part of the container's contents.
@@ -44,22 +58,18 @@ class ItemContainer:
         Parameters
         ----------
         item: str or Item
-            The item to check if it is part of the contents, eiter `Item` or
+            The item to check if it is part of the contents, either `Item` or
             its name.
 
         Returns
         -------
         bool
-            ´True´ if the item is part of the contents, ´False` otherwise.
+            `True` if the item is part of the contents, `False` otherwise.
         """
-        if isinstance(item, Item):
-            return item in self.items
-
-        item_name = str(item)
-        for candidate in self.items:
-            if candidate.name == item_name:
-                return True
-        return False
+        try:
+            return isinstance(self.get(item), Item)
+        except ValueError:
+            return False
 
     def add_item(self, item: Item, strict: bool = False) -> None:
         """Adds an item to the container.
@@ -76,13 +86,7 @@ class ItemContainer:
         ValueError
             Raised if `strict` and the item is already present.
         """
-        if self.contains_item(item):
-            if strict:
-                raise ValueError(f"Duplicate item: {item}")
-        else:
-            self.items.append(item)
-
-        self.items.sort(key=lambda x: x.name)
+        self.add(item, strict)
 
     def remove_item(self, item: str | Item, strict: bool = False) -> None:
         """Removes an item from the container.
@@ -92,24 +96,57 @@ class ItemContainer:
         item: Item or str
             The item to remove, eiter `Item` or its name.
         strict: bool
-            Error will be raised not present items if set to `True`.
+            Error will be raised for not present items if set to `True`.
 
         Raises
         ------
         ValueError
             Raised if `strict` and the item is not present.
         """
-        if not self.contains_item(item):
-            if strict:
-                raise ValueError(f"Non-existing item: {item}")
-        elif isinstance(item, Item):
-            self.items.remove(item)
-        else:
-            item_name = str(item)
-            for candidate in self.items:
-                if candidate.name == item_name:
-                    self.items.remove(candidate)
-                    break
+        self.remove(item, strict)
+
+    def get_item(self, item: str | Item) -> Item:
+        """Gets an item from the container.
+
+        Parameters
+        ----------
+        item: Item or str
+            The item to get, eiter `Item` or its name.
+
+        Returns
+        -------
+        Item
+            The requested item.
+
+        Raises
+        ------
+        ValueError
+            Raised if the specified item is not present.
+        """
+        candidate = self.get(item)
+        if isinstance(candidate, Item):
+            return candidate
+        raise ValueError(f"Missing item: {item}")
+
+    def get_item_list(self) -> list[Item]:
+        """Gets a list of contained items.
+
+        Returns
+        -------
+        list of GameObject
+            New list of items.
+        """
+        return [item for item in self.get_list() if isinstance(item, Item)]
+
+    def get_item_dict(self) -> dict[str, Item]:
+        """Gets a dictionary of contained items.
+
+        Returns
+        -------
+        dict of str, Item
+            New dict of items with the names as keys and items as values.
+        """
+        return {item.name: item for item in self.get_item_list()}
 
 
 @dataclass
@@ -129,15 +166,30 @@ class LockableContainerItem(ItemContainer, Item):
         Inherited from `Item`.
     key: Item or None
         The item representing the key, or `None` for no key required.
-    items: list of Item
-        The contained items.
+    contents: list of GameObject
+        The contained game objects.
         Inherited from `ItemContainer`.
     """
 
     key: Item | None = field(default=None)
 
+    def validate(self, valid_objects: Iterable[GameObject]):
+        """Validates the integrity of the lockable item container in relation to valid objects.
 
-def create_items(data: Any) -> ItemContainer:
+        Raises
+        ------
+        GameDataError
+            Raised if the lockable item container contains obvious errors.
+        """
+        if not self in valid_objects:
+            raise GameDataError(f"Illegal lockable item container: {self}")
+
+        for item in self.get_item_list():
+            if not item in valid_objects:
+                raise GameDataError(f"Illegal contained item: {self}")
+
+
+def create_items(data: Any) -> list[Item]:
     """Creates items from an iterable of dict-like data.
 
     The key `class` is required, and its supported values are:
@@ -154,7 +206,7 @@ def create_items(data: Any) -> ItemContainer:
 
     Returns
     -------
-    ItemContainer
+    list of Item
         Items initialized from `data`.
 
     Raises
@@ -170,19 +222,21 @@ def create_items(data: Any) -> ItemContainer:
                 item_class = entry["class"]
 
                 if item_class == "ITEM":
-                    container.add_item(create_item(entry))
+                    item = create_item(entry)
                 elif item_class == "CONTAINER":
-                    container.add_item(
-                        create_lockable_container_item(entry, container.items)
+                    item = create_lockable_container_item(
+                        entry, container.get_item_list()
                     )
                 else:
                     raise ValueError(f"Unsupported item class: {item_class}")
+
+                container.add_item(item)
             except KeyError as e:
                 raise ValueError("Missing item class") from e
     except TypeError as e:
         raise ValueError("Invalid type") from e
 
-    return container
+    return container.get_item_list()
 
 
 def create_item(data: Any, takeable_default: bool = True) -> Item:
@@ -222,7 +276,7 @@ def create_item(data: Any, takeable_default: bool = True) -> Item:
 
 
 def create_lockable_container_item(
-    data: Any, items: list[Item] | None = None, takeable_default: bool = False
+    data: Any, items: Iterable[Item] | None = None, takeable_default: bool = False
 ) -> LockableContainerItem:
     """Creates an `LockableContainerItem` from a dict-like object.
 
@@ -243,8 +297,8 @@ def create_lockable_container_item(
         dict-like object compatible with `create_item()` and optionally the key
         'key' with string value, and/or the key 'items' with a list of string
         values. The strings represent names of items.
-    items: list of Item or None
-        Items allowed to be inside the container, empty list or `None` for no
+    items: iterable of Item or None
+        Items allowed to be inside the container, empty or `None` for no
         allowed items.
     takeable_default:
         Default value for `takeable`.
@@ -262,46 +316,14 @@ def create_lockable_container_item(
         takeable=base_item.takeable,
     )
 
+    allowed_items = ItemContainer(list(items or []))
+
     key_name = str(data.get("key", "")).strip()
     if key_name:
-        container_item.key = get_item_by_name(items, key_name)
+        container_item.key = allowed_items.get_item(key_name)
 
     for item_name in {str(item).strip() for item in data.get("items", [])}:
-        item = get_item_by_name(items, item_name)
+        item = allowed_items.get_item(item_name)
         container_item.add_item(item, strict=True)
 
     return container_item
-
-
-def get_item_by_name(items: ItemContainer | Iterable[Item] | None, name: str) -> Item:
-    """Gets the item with a specific name.
-
-    Parameters
-    ----------
-    items: ItemContainer or Iterable of Item or None
-        Items to search
-    name: str
-        Name of the item to get.
-
-    Returns
-    -------
-    Item
-        The first item encountered named ´name´.
-
-    Raises
-    ------
-    ValueError
-        Raised if no item named ´name´ were present.
-    """
-    if not items:
-        items_to_search = []
-    elif isinstance(items, ItemContainer):
-        items_to_search = list(items.items)
-    else:
-        items_to_search = list(items)
-
-    for item in items_to_search:
-        if item.name == name:
-            return item
-
-    raise ValueError(f"Item does not exist: {name}")

@@ -34,10 +34,12 @@ def validate_goal_based_ending(ending: GoalBasedEnding, world: World) -> None:
     GameDataError
         Raised if the ending contain obvious errors.
     """
-    for item in ending.items.items:
-        if not world.items.contains_item(item):
+    for item in ending.items.get_item_list():
+        if not world.contains_item(item):
             raise GameDataError(f"Alien ending item: {item.name}")
-    if ending.location and ending.location not in world.locations:
+    if ending.location and not world.contains_location(ending.location):
+        print(ending.location)
+        print(world.get_location_list())
         raise GameDataError(f'Ending location "{ending.location}" does not exist.')
 
 

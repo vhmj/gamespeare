@@ -12,7 +12,7 @@ from gamespeare.action import (
     TakeAction,
     UseAction,
 )
-from gamespeare.item import Item, LockableContainerItem, get_item_by_name
+from gamespeare.item import Item, LockableContainerItem
 from gamespeare.playbook import Playbook
 
 
@@ -86,7 +86,7 @@ class AdventureGame(ABC):
         Parameters
         ----------
         action: Action
-            The `Action´ to perform.
+            The `Action` to perform.
 
         Returns
         -------
@@ -152,8 +152,7 @@ class AdventureGame(ABC):
 
         if not container.key or container.key == key:
             result.append(f"{container.name} unlocked!")
-            print(container.items)
-            for item in list(container.items):
+            for item in list(container.get_item_list()):
                 self.playbook.add_item_to_location(self.playbook.state.location, item)
                 result.append(f"{item.name} discovered!")
         else:
@@ -175,7 +174,7 @@ class AdventureGame(ABC):
         if self.playbook.state.inventory.contains_item(action.item):
             return [f"You already have {action.item}"]
 
-        if not self.playbook.state.location.items.contains_item(action.item):
+        if not self.playbook.state.location.contains_item(action.item):
             return [f"Can't take {action.item}, it's not here!"]
 
         if not action.item.takeable:
@@ -262,9 +261,10 @@ QUIT
         print(f"{location.description}")
         print()
 
-        if location.items:
+        items = location.get_item_list()
+        if items:
             print("You can see the following items here:")
-            for item in location.items.items:
+            for item in items:
                 print(item)
             print()
 
@@ -274,9 +274,10 @@ QUIT
                 print(direction)
             print()
 
-        if self.playbook.state.inventory:
+        inventory = self.playbook.state.inventory.get_item_list()
+        if inventory:
             print("You have the following items:")
-            for item in self.playbook.state.inventory.items:
+            for item in inventory:
                 print(item)
             print()
 
@@ -311,11 +312,10 @@ QUIT
 
     def _parse_take_action(self, param: str) -> TakeAction:
         item_name = param.upper()
-        if not self.playbook.state.location.items.contains_item(item_name):
-            raise ActionError(f"Invalid item: {param}")
-        item = get_item_by_name(
-            items=self.playbook.state.location.items, name=item_name
-        )
+        try:
+            item = self.playbook.state.location.get_item(item_name)
+        except ValueError as e:
+            raise ActionError(f"Invalid item: {param}") from e
         return TakeAction(item)
 
     def present_consequences(self, consequences: Sequence[str]) -> None:

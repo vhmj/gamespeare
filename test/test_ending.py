@@ -134,10 +134,10 @@ class TestGoalBasedEnding(unittest.TestCase):
         item_y = Item(name="Y", description="Y", takeable=True)
         item_z = Item(name="Z", description="Z", takeable=True)
 
-        self.items_a = ItemContainer(items=[item_a])
-        self.items_ab = ItemContainer(items=[item_a, item_b])
-        self.items_abc = ItemContainer(items=[item_a, item_b, item_c])
-        self.items_xyz = ItemContainer(items=[item_x, item_y, item_z])
+        self.items_a = ItemContainer(contents=[item_a])
+        self.items_ab = ItemContainer(contents=[item_a, item_b])
+        self.items_abc = ItemContainer(contents=[item_a, item_b, item_c])
+        self.items_xyz = ItemContainer(contents=[item_x, item_y, item_z])
 
         self.state_ab = State(
             turn_no=1, location=self.location_ab, inventory=self.items_ab
@@ -149,7 +149,7 @@ class TestGoalBasedEnding(unittest.TestCase):
             turn_no=1, location=self.location_xyz, inventory=self.items_xyz
         )
 
-        self.world = World(items=self.items_abc, locations=[self.location_abc])
+        self.world = World(contents=self.items_abc.contents + [self.location_abc])
 
     def test_goal_based_ending_evaluate_empty(self) -> None:
         """Tests GoalBasedEnding.evaluate() with neither items nor location"""
@@ -193,18 +193,19 @@ class TestGoalBasedEnding(unittest.TestCase):
             "location": "ABC",
             "items": ["A", "B", "C"],
         }
+        print(self.world)
         ending_full = create_goal_based_ending(ending_full_data, self.world)
         self.assertIsInstance(ending_full, GoalBasedEnding)
         self.assertEqual(ending_full.reason, "Full")
         self.assertIs(ending_full.location, self.location_abc)
-        self.assertCountEqual(ending_full.items.items, self.items_abc.items)
+        self.assertCountEqual(ending_full.items.contents, self.items_abc.contents)
 
         ending_empty_data = {"reason": "Empty"}
         ending_empty = create_goal_based_ending(ending_empty_data, self.world)
         self.assertIsInstance(ending_empty, GoalBasedEnding)
         self.assertEqual(ending_empty.reason, "Empty")
         self.assertIs(ending_empty.location, None)
-        self.assertCountEqual(ending_empty.items.items, [])
+        self.assertCountEqual(ending_empty.items.contents, [])
 
     def test_create_goal_based_ending_invalid(self) -> None:
         """Tests create_goal_based_ending() with invalid data"""

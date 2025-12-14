@@ -5,8 +5,8 @@ from dataclasses import dataclass, field
 from random import random
 from typing import Any
 
-from gamespeare.item import ItemContainer, get_item_by_name
-from gamespeare.location import Location, get_location_by_name
+from gamespeare.item import ItemContainer
+from gamespeare.location import Location
 from gamespeare.state import State
 from gamespeare.utils import get_float, get_int, get_string
 from gamespeare.world import World
@@ -78,7 +78,7 @@ class GoalBasedEnding(Ending):
         if self.location and not self.location == state.location:
             return False
 
-        for item in self.items.items:
+        for item in self.items.get_item_list():
             if not state.inventory.contains_item(item):
                 return False
 
@@ -106,14 +106,14 @@ def create_goal_based_ending(data: Any, world: World) -> GoalBasedEnding:
 
     location_name = get_string(data, "location", empty_ok=True)
     if location_name:
-        location = get_location_by_name(world.locations, location_name)
+        location = world.get_location(location_name)
     else:
         location = None
 
     items = ItemContainer()
     for entry in data.get("items", []):
         item_name = str(entry).strip()
-        items.add_item(get_item_by_name(world.items.items, item_name))
+        items.add_item(world.get_item(item_name))
 
     return GoalBasedEnding(reason=reason, location=location, items=items)
 

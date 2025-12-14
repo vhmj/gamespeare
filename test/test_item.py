@@ -9,7 +9,6 @@ from gamespeare.item import (
     create_item,
     create_items,
     create_lockable_container_item,
-    get_item_by_name,
 )
 
 
@@ -42,98 +41,110 @@ class TestItemContainer(unittest.TestCase):
             Item(name="2", description="Item 2", takeable=True),
             Item(name="3", description="Item 3", takeable=False),
         ]
+        self.container = ItemContainer(self.items)
 
-    def test_item_container_init(self) -> None:
-        """Tests ItemContainer()"""
+    def test_item_container_init_empty(self) -> None:
+        """Tests `ItemContainer()` without parameters"""
         empty = ItemContainer()
         self.assertIsInstance(empty, ItemContainer)
-        self.assertCountEqual(empty.items, [])
+        self.assertCountEqual(empty.contents, [])
 
+    def test_item_container_init_non_empty(self) -> None:
+        """Tests `ItemContainer()` with parameters"""
         nonempty = ItemContainer(self.items)
         self.assertIsInstance(nonempty, ItemContainer)
-        self.assertCountEqual(nonempty.items, self.items)
+        self.assertCountEqual(nonempty.contents, self.items)
 
-    def test_contains_item(self) -> None:
-        """Tests `contains_item()`"""
-        container = ItemContainer(self.items.copy())
+    def test_contains_item_true(self) -> None:
+        """Tests `contains_item()` with existing items"""
         for item in self.items:
-            self.assertTrue(container.contains_item(item), f"{item}")
-            self.assertTrue(container.contains_item(item.name), f"{item.name}")
+            self.assertTrue(self.container.contains_item(item), f"{item}")
+            self.assertTrue(self.container.contains_item(item.name), f"{item.name}")
 
+    def test_contains_item_false(self) -> None:
+        """Tests `contains_item()` with missing items"""
         missing = Item(name="MISSING", description="Missing", takeable=True)
-        self.assertFalse(container.contains_item(missing))
-        self.assertFalse(container.contains_item(missing.name))
+        self.assertFalse(self.container.contains_item(missing))
+        self.assertFalse(self.container.contains_item(missing.name))
 
-    def test_add_item(self) -> None:
+    def test_add_item_non_strict(self) -> None:
         """Tests `add_item()`"""
         container = ItemContainer()
+        added_items = []
 
         for item in self.items:
+            added_items.append(item)
+
             container.add_item(item)
-        self.assertCountEqual(container.items, self.items)
+            self.assertCountEqual(container.contents, added_items)
 
-        container.add_item(self.items[0])
+            with self.assertRaises(ValueError):
+                container.add_item(item, strict=True)
+            container.add_item(item, strict=False)
+
+        self.assertCountEqual(container.contents, self.items)
+
+    def test_remove_item_by_existing_item(self) -> None:
+        """Tests `test_remove_item()` with existing `Item`"""
+        remaining_items = list(self.items)
+
+        while remaining_items:
+            item = remaining_items.pop()
+
+            self.container.remove_item(item)
+            self.assertCountEqual(self.container.contents, remaining_items)
+
+            with self.assertRaises(ValueError):
+                self.container.remove_item(item, strict=True)
+            self.container.remove_item(item, strict=False)
+
+        self.assertCountEqual(self.container.contents, [])
+
+    def test_remove_item_by_nonexisting_item(self) -> None:
+        """Tests `test_remove_item()` with missing `Item`"""
+        original_items = self.container.get_item_list()
+        missing_item = Item(name="MISSING", description="Missing", takeable=True)
+        self.assertNotIn(missing_item, original_items)
+
+        self.container.remove_item(missing_item)
+
         with self.assertRaises(ValueError):
-            container.add_item(self.items[0], strict=True)
+            self.container.remove_item(missing_item, strict=True)
+        self.container.remove_item(missing_item, strict=False)
 
-    def test_remove_item_by_item(self) -> None:
-        """Tests `test_remove_item()` with `Item`"""
-        container = ItemContainer(self.items.copy())
-        remaining_items = self.items.copy()
+        self.assertCountEqual(self.container.contents, original_items)
 
-        for item in self.items:
-            container.remove_item(item)
-            remaining_items.remove(item)
-            self.assertCountEqual(container.items, remaining_items)
+    def test_remove_item_by_existing_str(self) -> None:
+        """Tests `test_remove_item()` with existing `str`"""
+        remaining_items = list(self.items)
 
-        container.remove_item(self.items[0])
+        while remaining_items:
+            item = remaining_items.pop()
+
+            self.container.remove_item(item.name)
+            self.assertCountEqual(self.container.contents, remaining_items)
+
+            with self.assertRaises(ValueError):
+                self.container.remove_item(item.name, strict=True)
+            self.container.remove_item(item.name, strict=False)
+
+        self.assertCountEqual(self.container.contents, [])
+
+    def test_remove_item_by_nonexisting_str(self) -> None:
+        """Tests `test_remove_item()` with missing `str`"""
+        original_items = self.container.get_item_list()
+
+        self.container.remove_item("MISSING")
+
         with self.assertRaises(ValueError):
-            container.remove_item(self.items[0], strict=True)
+            self.container.remove_item("MISSING", strict=True)
+        self.container.remove_item("MISSING", strict=False)
 
-    def test_remove_item_by_str(self) -> None:
-        """Tests `test_remove_item()` with `str`"""
-        container = ItemContainer(self.items.copy())
-        remaining_items = self.items.copy()
-
-        for item in self.items:
-            container.remove_item(item.name)
-            remaining_items.remove(item)
-            self.assertCountEqual(container.items, remaining_items)
-
-        container.remove_item(self.items[0].name)
-        with self.assertRaises(ValueError):
-            container.remove_item(self.items[0].name, strict=True)
+        self.assertCountEqual(self.container.contents, original_items)
 
 
 class TestItemStatic(unittest.TestCase):
     """Class for testing the static functions of the `item` module"""
-
-    def test_get_item_by_name(self) -> None:
-        """Tests `test_get_item_by_name()`"""
-        no_items: list[Item] = []
-
-        with self.assertRaises(ValueError):
-            get_item_by_name(no_items, "MISSING")
-
-        item1 = Item("1", "Description of 1", takeable=True)
-        item2 = Item("2", "Description of 2", takeable=False)
-        item3 = Item("3", "Description of 3", takeable=True)
-        item4 = Item("4", "Description of 4", takeable=True)
-        item5 = LockableContainerItem(
-            "5", "Description of 5", takeable=False, key=item3, items=[item4]
-        )
-        items = [item1, item2, item5]
-
-        self.assertIs(get_item_by_name(items, "1"), item1)
-        self.assertIs(get_item_by_name(items, "2"), item2)
-        self.assertIs(get_item_by_name(items, "5"), item5)
-
-        with self.assertRaises(ValueError):
-            get_item_by_name(items, "MISSING")
-        with self.assertRaises(ValueError):
-            get_item_by_name(items, "3")
-        with self.assertRaises(ValueError):
-            get_item_by_name(items, "4")
 
     def test_create_item_valid(self) -> None:
         """Tests `test_create_item()` with valid data"""
@@ -185,7 +196,7 @@ class TestItemStatic(unittest.TestCase):
         self.assertEqual(minimal_item.description, "Minimal")
         self.assertEqual(minimal_item.takeable, False)
         self.assertIs(minimal_item.key, None)
-        self.assertCountEqual(minimal_item.items, [])
+        self.assertCountEqual(minimal_item.contents, [])
 
         takeable_item = create_lockable_container_item(
             data={"name": "TAKEABLE", "description": "Takeable", "takeable": True}
@@ -195,7 +206,7 @@ class TestItemStatic(unittest.TestCase):
         self.assertEqual(takeable_item.description, "Takeable")
         self.assertEqual(takeable_item.takeable, True)
         self.assertIs(takeable_item.key, None)
-        self.assertCountEqual(takeable_item.items, [])
+        self.assertCountEqual(takeable_item.contents, [])
 
         untakeable_item = create_lockable_container_item(
             data={"name": "UNTAKEABLE", "description": "Untakeable", "takeable": False}
@@ -205,7 +216,7 @@ class TestItemStatic(unittest.TestCase):
         self.assertEqual(untakeable_item.description, "Untakeable")
         self.assertEqual(untakeable_item.takeable, False)
         self.assertIs(untakeable_item.key, None)
-        self.assertCountEqual(untakeable_item.items, [])
+        self.assertCountEqual(untakeable_item.contents, [])
 
         with_key = create_lockable_container_item(
             data={"name": "WITH KEY", "description": "With key", "key": "MINIMAL"},
@@ -230,7 +241,7 @@ class TestItemStatic(unittest.TestCase):
         self.assertEqual(with_items.description, "With items")
         self.assertEqual(with_items.takeable, False)
         self.assertIs(with_items.key, None)
-        self.assertCountEqual(with_items.items, [minimal_item, takeable_item])
+        self.assertCountEqual(with_items.contents, [minimal_item, takeable_item])
 
         with_item_and_key = create_lockable_container_item(
             data={
@@ -246,7 +257,7 @@ class TestItemStatic(unittest.TestCase):
         self.assertEqual(with_item_and_key.description, "With item and key")
         self.assertEqual(with_item_and_key.takeable, False)
         self.assertIs(with_item_and_key.key, minimal_item)
-        self.assertCountEqual(with_item_and_key.items, [takeable_item])
+        self.assertCountEqual(with_item_and_key.contents, [takeable_item])
 
     def test_create_lockable_container_item_invalid(self) -> None:
         """Tests `create_lockable_container_item()` with invalid data"""
@@ -287,7 +298,7 @@ class TestItemStatic(unittest.TestCase):
     def test_create_items_valid(self) -> None:
         """Tests `test_create_items()` with valid data"""
         no_items = create_items([])
-        self.assertCountEqual(no_items.items, [])
+        self.assertCountEqual(no_items, [])
 
         item1 = Item("ITEM1", "Item 1.", takeable=True)
         item2 = Item("ITEM2", "Item 2.", takeable=True)
@@ -297,10 +308,10 @@ class TestItemStatic(unittest.TestCase):
             "CONTAINER2", "Container 2.", takeable=True, key=item1
         )
         container3 = LockableContainerItem(
-            "CONTAINER3", "Container 3.", takeable=False, items=[item1, item2]
+            "CONTAINER3", "Container 3.", takeable=False, contents=[item1, item2]
         )
         container4 = LockableContainerItem(
-            "CONTAINER4", "Container 4.", takeable=False, key=item1, items=[item2]
+            "CONTAINER4", "Container 4.", takeable=False, key=item1, contents=[item2]
         )
 
         valid_items_data = [
@@ -360,7 +371,7 @@ class TestItemStatic(unittest.TestCase):
             container3,
             container4,
         ]
-        self.assertCountEqual(valid_items.items, valid_items_ref)
+        self.assertCountEqual(valid_items, valid_items_ref)
 
     def test_create_items_invalid(self) -> None:
         """Tests `test_create_items()` with invalid data"""
