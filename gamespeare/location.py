@@ -158,6 +158,7 @@ def create_location(
     data: Any,
     locations: Iterable[Location] | None = None,
     items: Iterable[Item] | None = None,
+    ignore_destinations: bool = False,
 ) -> Location:
     """Creates a `Location` from a dict-like object.
 
@@ -177,40 +178,38 @@ def create_location(
 
     Parameters
     ----------
-    items: ItemContainer or iterable of Item or None
-        Valid items.
-    locations: iterable of Location
-        Valid locations.
     data: Any
         dict-like object with keys 'name' and 'description' with string values, and
         optionally 'items', with a list of string values, and 'destinations', a dict
         with string keys and values.
+    locations: iterable of Location
+        Valid locations.
+    items: Iterable of Item or None
+        Valid items.
+    ignore_destinations: bool
+        Skips parsing the destination data if set to `True`.
 
     Raises
     ------
     ValueError
         Raised if `data` lacks required values or has incorrect values.
     """
-    if not items:
-        valid_items = []
-    elif isinstance(items, ItemContainer):
-        valid_items = items.get_item_list()
-    else:
-        valid_items = list(items)
-    item_dict = {item.name: item for item in valid_items}
-
+    item_dict = {item.name: item for item in items or []}
     location_dict = {location.name: location for location in locations or []}
 
     try:
-        name = str(data["name"]).strip()
-        description = str(data["description"]).strip()
+        name = data["name"]
+        description = data["description"]
         contents: list[GameObject] = [
-            item_dict[str(item).strip()] for item in data.get("items", [])
+            item_dict[item_name] for item_name in data.get("items", [])
         ]
-        destinations = {
-            str(k).strip(): location_dict[str(v).strip()]
-            for (k, v) in data.get("destinations", {}).items()
-        }
+        if ignore_destinations:
+            destinations = {}
+        else:
+            destinations = {
+                direction: location_dict[destination]
+                for (direction, destination) in data.get("destinations", {}).items()
+            }
     except KeyError as e:
         raise ValueError("Missing key") from e
     except TypeError as e:
@@ -246,33 +245,36 @@ def create_locations(data: Any, items: Iterable[Item] | None) -> list[Location]:
     ValueError
         Raised if `data` was invalid.
     """
-    locations = {}
-    unfilled_destinations = {}
+    locations = _create_destinationless_locations(data=data, items=items or [])
+    _set_location_destinations(data=data, locations=locations)
+
+    return locations.get_location_list()
+
+
+def _create_destinationless_locations(
+    data: Any, items: Iterable[Item]
+) -> LocationContainer:
+    locations = LocationContainer()
 
     for entry in data:
         location_class = entry.get("class")
         if location_class == "LOCATION":
-            destinations = entry.pop("destinations", {})
-
-            location = create_location(entry, items=items)
-            if location.name in locations:
-                raise ValueError(f"Duplicate location name: {location.name}")
-            locations[location.name] = location
-
-            if destinations:
-                unfilled_destinations[location.name] = destinations
+            location = create_location(entry, items=items, ignore_destinations=True)
+            locations.add_location(location=location, strict=True)
         else:
-            raise ValueError(f"Unsupported ending class: {location_class}")
+            raise ValueError(f"Unsupported location class: {location_class}")
 
-    for location_name, location_destinations in unfilled_destinations.items():
-        location = locations[location_name]
+    return locations
+
+
+def _set_location_destinations(data: Any, locations: LocationContainer) -> None:
+    location_dict = locations.get_location_dict()
+
+    for entry in data:
         try:
-            for direction, destination_name in location_destinations.items():
-                if destination_name not in locations:
-                    raise ValueError(f"Unknown destination: {destination_name}")
-
-                location.destinations[direction] = locations[destination_name]
-        except (ValueError, TypeError) as e:
-            raise ValueError("Invalid destination entry") from e
-
-    return list(locations.values())
+            location_dict[entry["name"]].destinations = {
+                direction: location_dict[destination]
+                for (direction, destination) in entry.get("destinations", {}).items()
+            }
+        except KeyError as e:
+            raise ValueError("Alien destination") from e
