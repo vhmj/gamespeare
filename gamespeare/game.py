@@ -143,7 +143,7 @@ class AdventureGame(ABC):
                 container=action.target, key=action.item
             )
 
-        return [f"Can't use {action.item} on {action.target}."]
+        return [f"Can't use {action.item.name} on {action.target.name}."]
 
     def _execute_use_on_lockable_container(
         self, container: LockableContainerItem, key: Item
@@ -172,16 +172,16 @@ class AdventureGame(ABC):
 
     def _execute_take_action(self, action: TakeAction) -> list[str]:
         if self.playbook.state.inventory.contains_item(action.item):
-            return [f"You already have {action.item}"]
+            return [f"You already have {action.item.name}"]
 
         if not self.playbook.state.location.contains_item(action.item):
-            return [f"Can't take {action.item}, it's not here!"]
+            return [f"Can't take {action.item.name}, it's not here!"]
 
         if not action.item.takeable:
-            return [f"Can't take {action.item}!"]
+            return [f"Can't take {action.item.name}!"]
 
         self.playbook.add_item_to_inventory(action.item)
-        return [f"You now have {action.item}"]
+        return [f"You now have {action.item.name}"]
 
 
 class TextAdventureGame(AdventureGame):
