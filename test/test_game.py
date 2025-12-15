@@ -11,7 +11,7 @@ class TestTextAdventureGame(unittest.TestCase):
 
     def test_init(self) -> None:
         """Tests TextAdventureGame()"""
-        playbook = from_file("../testdata/valid.json")
+        playbook = from_file("testdata/valid.json")
         game = TextAdventureGame(playbook)
         self.assertEqual(game.playbook, playbook)
         self.assertEqual(game.ending, "")

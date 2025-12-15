@@ -11,7 +11,7 @@ class TestPlaybook(unittest.TestCase):
     """Tests Playbook."""
 
     def setUp(self) -> None:
-        self.playbook = from_file("../testdata/valid.json")
+        self.playbook = from_file("testdata/valid.json")
 
         self.chest = self.playbook.world.get_item("CHEST")
         self.skull = self.playbook.world.get_item("SKULL")
